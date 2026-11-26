@@ -35,7 +35,7 @@ export function TrackRow({
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") onPlay();
       }}
-      className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors active:bg-white/5 ${
+      className={`vm-row flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors active:bg-white/5 ${
         isCurrent ? "bg-rose-500/10" : ""
       }`}
     >

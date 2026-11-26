@@ -65,6 +65,9 @@ class Player {
   private pendingResume = 0;
   private forceStreamOnce = false;
   private lastPersist = 0;
+  private lastTimeUpdateAt = 0;
+  private downloadedIds = new Set<string>();
+  private accessToken: string | null = null;
   private needsLoad = false;
   private deps: {
     getToken: () => Promise<string>;
@@ -79,6 +82,14 @@ class Player {
 
   configure(deps: Partial<Player["deps"]>): void {
     this.deps = { ...this.deps, ...deps };
+  }
+
+  setDownloadedIds(ids: Set<string>): void {
+    this.downloadedIds = new Set(ids);
+  }
+
+  setAccessToken(token: string | null): void {
+    this.accessToken = token;
   }
 
   subscribe(listener: (snapshot: PlayerSnapshot) => void): () => void {
@@ -305,12 +316,18 @@ class Player {
       this.updateMediaSession();
     });
     audio.addEventListener("timeupdate", () => {
+      const now = Date.now();
+      if (now - this.lastTimeUpdateAt < 500) return;
+      this.lastTimeUpdateAt = now;
       this.update({ time: audio.currentTime });
       this.updatePositionState();
       this.persist();
     });
     audio.addEventListener("play", () => this.update({ isPlaying: true }));
-    audio.addEventListener("pause", () => this.update({ isPlaying: false }));
+    audio.addEventListener("pause", () => {
+      this.update({ isPlaying: false, time: audio.currentTime });
+      this.updatePositionState();
+    });
     audio.addEventListener("waiting", () => this.update({ loading: true }));
     audio.addEventListener("playing", () => this.update({ loading: false }));
     audio.addEventListener("ended", () => {
@@ -386,23 +403,29 @@ class Player {
     let url = "";
     let objectUrl: string | null = null;
     try {
-      const blob = await getAudioBlob(track.id).catch(() => null);
-      if (blob) {
-        objectUrl = URL.createObjectURL(blob);
-        url = objectUrl;
-      } else if (this.deps.allowCellular() || this.forceStreamOnce) {
-        const accessToken = await this.deps.getToken();
-        url = mediaUrl(track.id, accessToken);
-      } else {
-        this.audio?.pause();
-        if (token === this.loadToken) {
-          this.update({
-            loading: false,
-            isPlaying: false,
-            needData: { trackId: track.id, sizeBytes: track.sizeBytes },
-          });
+      if (this.downloadedIds.has(track.id)) {
+        const blob = await getAudioBlob(track.id).catch(() => null);
+        if (blob) {
+          objectUrl = URL.createObjectURL(blob);
+          url = objectUrl;
         }
-        return;
+      }
+      if (!url) {
+        if (this.deps.allowCellular() || this.forceStreamOnce) {
+          const accessToken = this.accessToken ?? (await this.deps.getToken());
+          this.accessToken = accessToken;
+          url = mediaUrl(track.id, accessToken);
+        } else {
+          this.audio?.pause();
+          if (token === this.loadToken) {
+            this.update({
+              loading: false,
+              isPlaying: false,
+              needData: { trackId: track.id, sizeBytes: track.sizeBytes },
+            });
+          }
+          return;
+        }
       }
     } catch (error) {
       if (token !== this.loadToken) return;

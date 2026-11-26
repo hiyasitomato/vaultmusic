@@ -127,20 +127,24 @@ export default function App() {
     const clientId = settingsRef.current?.clientId ?? "";
     if (!interactive) {
       const token = await getValidToken(clientId);
+      player.setAccessToken(token);
       setAuthState("online");
       return token;
     }
     const existing = peekToken();
     if (existing) {
+      player.setAccessToken(existing);
       setAuthState("online");
       return existing;
     }
     const refreshed = await requestToken(clientId, false);
+    player.setAccessToken(refreshed.token);
     setAuthState("online");
     return refreshed.token;
   }
 
   async function loadLibrary(folderId: string, token: string): Promise<void> {
+    player.setAccessToken(token);
     setBusyLabel("音楽フォルダを確認中…");
     let listing: Awaited<ReturnType<typeof listMusicFolder>>;
     try {
@@ -192,7 +196,8 @@ export default function App() {
 
   async function login(clientId: string): Promise<void> {
     setConnectError(null);
-    await requestToken(clientId.trim(), false);
+    const result = await requestToken(clientId.trim(), false);
+    player.setAccessToken(result.token);
     const next: Settings = { ...(settingsRef.current ?? DEFAULT_SETTINGS), clientId: clientId.trim() };
     updateSettings(next);
     setAuthState("online");
@@ -351,6 +356,8 @@ export default function App() {
     const loaded = loadSettings();
     settingsRef.current = loaded;
     setSettings(loaded);
+    const existingToken = peekToken();
+    if (existingToken) player.setAccessToken(existingToken);
     setUserData(getUserData());
     setSnapshot(player.getState());
     setOnline(typeof navigator === "undefined" ? true : navigator.onLine);
@@ -404,6 +411,10 @@ export default function App() {
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
+
+  useEffect(() => {
+    player.setDownloadedIds(downloads);
+  }, [downloads]);
 
   useEffect(() => {
     if (!settings) return;
@@ -744,6 +755,7 @@ export default function App() {
           onLogout={() => {
             revokeToken();
             forgetToken();
+            player.setAccessToken(null);
             setAuthState("cached");
             showToast("ログアウトしました");
           }}

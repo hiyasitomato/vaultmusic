@@ -6,6 +6,7 @@ import {
   HardDrive,
   Heart,
   History,
+  ListMusic,
   Play,
   Shuffle,
   Sparkles,
@@ -105,7 +106,26 @@ export function HomeView({
 
   return (
     <div>
-      <div className="mt-3 rounded-2xl border border-white/10 bg-gradient-to-br from-violet-600/25 via-rose-600/15 to-amber-500/10 p-4">
+      <div className="mt-3 flex gap-2">
+        <button
+          type="button"
+          onClick={onPlayShuffle}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white py-2.5 text-[13px] font-semibold text-black"
+        >
+          <Shuffle className="h-4 w-4" />
+          全曲シャッフル
+        </button>
+        <button
+          type="button"
+          onClick={onShowTracks}
+          className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 px-3 py-2.5 text-[13px] text-zinc-200"
+        >
+          <ListMusic className="h-4 w-4" />
+          曲一覧
+        </button>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-white/10 bg-gradient-to-br from-violet-600/25 via-rose-600/15 to-amber-500/10 p-4">
         <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-rose-200/80">
           <Sparkles className="h-3.5 w-3.5" />
           通学セット
@@ -133,7 +153,7 @@ export function HomeView({
             className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white px-3 py-2 text-[13px] font-semibold text-black disabled:opacity-40"
           >
             <Download className="h-4 w-4" />
-            {remaining === 0 ? "すべて保存済み" : "次の20曲を保存"}
+            {remaining === 0 ? "すべて保存済み" : "オフライン用に保存"}
           </button>
           <button
             type="button"

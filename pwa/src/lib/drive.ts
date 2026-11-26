@@ -78,7 +78,7 @@ export async function listMusicFolder(
 ): Promise<{ files: DriveAudioFile[]; folders: DriveFolder[] }> {
   const files: DriveAudioFile[] = [];
   const folders: DriveFolder[] = [];
-  const queue: { id: string; parentId?: string }[] = [{ id: folderId }];
+  const queue: string[] = [folderId];
   const seen = new Set<string>();
 
   const metaResponse = await driveFetch(
@@ -100,17 +100,27 @@ export async function listMusicFolder(
   folders.push({ id: folderId, name: meta.name ?? "音楽" });
 
   while (queue.length > 0 && seen.size < 2000) {
-    const current = queue.shift();
-    if (!current || seen.has(current.id)) continue;
-    seen.add(current.id);
+    const batch: string[] = [];
+    while (queue.length > 0 && batch.length < 6) {
+      const id = queue.shift();
+      if (id && !seen.has(id)) {
+        seen.add(id);
+        batch.push(id);
+      }
+    }
+    if (batch.length === 0) continue;
 
-    const children = await listFolderChildren(current.id, token);
-    for (const child of children) {
-      if (child.mimeType === FOLDER_MIME) {
-        folders.push({ id: child.id, name: child.name, parentId: current.id });
-        queue.push({ id: child.id, parentId: current.id });
-      } else if (isAudio(child)) {
-        files.push(child);
+    const results = await Promise.all(
+      batch.map(async (id) => ({ id, children: await listFolderChildren(id, token) }))
+    );
+    for (const result of results) {
+      for (const child of result.children) {
+        if (child.mimeType === FOLDER_MIME) {
+          folders.push({ id: child.id, name: child.name, parentId: result.id });
+          queue.push(child.id);
+        } else if (isAudio(child)) {
+          files.push(child);
+        }
       }
     }
   }
