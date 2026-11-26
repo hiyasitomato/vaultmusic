@@ -42,9 +42,14 @@ describe("buildLibrary", () => {
   });
 
   it("only builds albums with two or more tracks", () => {
-    expect(library.albums).toHaveLength(1);
-    expect(library.albums[0].title).toBe("Album X");
-    expect(library.albums[0].trackIds.sort()).toEqual(["1", "2"]);
+    expect(library.albums).toHaveLength(2);
+    const tagged = library.albums.find((album) => album.title === "Album X");
+    expect(tagged?.trackIds.sort()).toEqual(["1", "2"]);
+  });
+
+  it("falls back to the folder name for untagged albums", () => {
+    const fallback = library.albums.find((album) => album.title === "Music");
+    expect(fallback?.trackIds.sort()).toEqual(["4", "5"]);
   });
 
   it("groups folders by parent id", () => {

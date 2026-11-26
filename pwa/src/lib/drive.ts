@@ -2,8 +2,7 @@ import type { DriveAudioFile, DriveFolder } from "./types";
 
 const API = "https://www.googleapis.com/drive/v3";
 const FOLDER_MIME = "application/vnd.google-apps.folder";const AUDIO_EXT = /\.(mp3|m4a|aac|opus|flac|wav|ogg)$/i;
-const FILE_FIELDS =
-  "id,name,mimeType,size,modifiedTime,createdTime,parents,audioMediaMetadata,thumbnailLink";
+const FILE_FIELDS = "id,name,mimeType,size,modifiedTime,createdTime,parents,thumbnailLink";
 
 export class DriveError extends Error {
   status: number;

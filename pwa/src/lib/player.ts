@@ -70,6 +70,7 @@ class Player {
     getToken: () => Promise<string>;
     allowCellular: () => boolean;
     coverUrl: (track: Track) => string | null;
+    onDuration?: (trackId: string, seconds: number) => void;
   } = {
     getToken: () => Promise.reject(new Error("ログインが必要です")),
     allowCellular: () => false,
@@ -298,6 +299,9 @@ class Player {
         this.pendingResume = 0;
       }
       this.update({ duration, loading: false });
+      if (this.snapshot.trackId && duration > 0) {
+        this.deps.onDuration?.(this.snapshot.trackId, duration);
+      }
       this.updateMediaSession();
     });
     audio.addEventListener("timeupdate", () => {

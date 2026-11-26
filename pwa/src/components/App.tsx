@@ -413,6 +413,19 @@ export default function App() {
       getToken: () => getValidToken(settingsRef.current?.clientId ?? ""),
       allowCellular: () => settingsRef.current?.allowCellular ?? false,
       coverUrl: (track) => track.thumbnailLink ?? null,
+      onDuration: (trackId, seconds) => {
+        setLibrary((prev) => {
+          if (!prev) return prev;
+          const index = prev.tracks.findIndex((track) => track.id === trackId);
+          if (index < 0) return prev;
+          if (Math.abs(prev.tracks[index].durationSec - seconds) < 1) return prev;
+          const tracks = prev.tracks.slice();
+          tracks[index] = { ...tracks[index], durationSec: seconds };
+          const next = { ...prev, tracks };
+          void cacheCatalog(next).catch(() => undefined);
+          return next;
+        });
+      },
     });
   }, [settings]);
 

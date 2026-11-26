@@ -2,7 +2,7 @@
 
 import { Check, Download, Heart, Loader2, TriangleAlert } from "lucide-react";
 import type { Track } from "@/lib/types";
-import { formatTime } from "@/lib/format";
+import { formatBytes, formatTime } from "@/lib/format";
 import { CoverArt } from "./CoverArt";
 
 export function TrackRow({
@@ -59,7 +59,11 @@ export function TrackRow({
         </div>
       </div>
       <div className="shrink-0 text-[11px] tabular-nums text-zinc-500">
-        {track.durationSec > 0 ? formatTime(track.durationSec) : ""}
+        {track.durationSec > 0
+          ? formatTime(track.durationSec)
+          : track.sizeBytes > 0
+            ? formatBytes(track.sizeBytes)
+            : ""}
       </div>
       <button
         type="button"

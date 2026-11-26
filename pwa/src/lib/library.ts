@@ -57,9 +57,12 @@ export function buildLibrary(
     const parsed = parseName(file.name, knownArtists);
     const title = (meta.title ?? "").trim() || parsed.title || stripExtension(file.name);
     const artist = (meta.artist ?? "").trim() || parsed.artist;
-    const album = (meta.album ?? "").trim();
-    const albumArtist = (meta.albumArtist ?? "").trim() || artist;
     const parentId = file.parents?.[0] ?? "";
+    const folderName = folderNames.get(parentId) ?? "";
+    const taggedAlbum = (meta.album ?? "").trim();
+    const album = taggedAlbum || folderName;
+    const albumArtist =
+      (meta.albumArtist ?? "").trim() || (taggedAlbum ? artist : folderName) || artist;
     const durationMillis = Number(meta.durationMillis ?? 0);
     return {
       id: file.id,
