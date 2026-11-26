@@ -234,8 +234,23 @@ export default function App() {
     }
   }
 
-  async function downloadOne(track: Track): Promise<void> {
+  async function prefetchTrack(track: Track): Promise<void> {
+    if (downloadBusy.current) return;
     if (downloads.has(track.id) || downloading.has(track.id)) return;
+    try {
+      const token = peekToken() ?? (await ensureToken(false));
+      await saveTrackToDb(
+        track,
+        token,
+        settingsRef.current?.cacheLimitBytes ?? DEFAULT_SETTINGS.cacheLimitBytes
+      );
+      setDownloads(await getDownloadedIds().catch(() => new Set<string>()));
+    } catch {
+      // 先読み失敗は無視（本再生には影響させない）
+    }
+  }
+
+  async function downloadOne(track: Track): Promise<void> {    if (downloads.has(track.id) || downloading.has(track.id)) return;
     setDownloading((prev) => new Set(prev).add(track.id));
     try {
       const token = await ensureToken(true);
@@ -244,7 +259,7 @@ export default function App() {
         token,
         settingsRef.current?.cacheLimitBytes ?? DEFAULT_SETTINGS.cacheLimitBytes
       );
-      setDownloads((prev) => new Set(prev).add(track.id));
+      setDownloads(await getDownloadedIds().catch(() => new Set<string>()));
       await refreshStorage();
       showToast(`保存しました：${track.title}`);
     } catch (error) {
@@ -301,6 +316,7 @@ export default function App() {
       downloadBusy.current = false;
     }
     await refreshStorage();
+    setDownloads(await getDownloadedIds().catch(() => new Set<string>()));
     if (saved > 0) showToast(`${saved}曲を保存しました`);
   }
 
@@ -358,6 +374,7 @@ export default function App() {
     setSettings(loaded);
     const existingToken = peekToken();
     if (existingToken) player.setAccessToken(existingToken);
+    player.warmup();
     setUserData(getUserData());
     setSnapshot(player.getState());
     setOnline(typeof navigator === "undefined" ? true : navigator.onLine);
@@ -415,6 +432,33 @@ export default function App() {
   useEffect(() => {
     player.setDownloadedIds(downloads);
   }, [downloads]);
+
+  useEffect(() => {
+    if (!settings?.clientId) return;
+    if (peekToken()) return;
+    let cancelled = false;
+    void getValidToken(settings.clientId)
+      .then((token) => {
+        if (cancelled) return;
+        player.setAccessToken(token);
+        setAuthState("online");
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [settings?.clientId]);
+
+  useEffect(() => {
+    if (!settings?.allowCellular || !snapshot.isPlaying || !snapshot.trackId) return;
+    const next = player.getNextTrack();
+    if (!next || downloads.has(next.id)) return;
+    const timer = setTimeout(() => {
+      void prefetchTrack(next);
+    }, 12000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot.trackId, snapshot.isPlaying, settings?.allowCellular, downloads]);
 
   useEffect(() => {
     if (!settings) return;

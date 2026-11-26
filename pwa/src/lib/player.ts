@@ -92,6 +92,10 @@ class Player {
     this.accessToken = token;
   }
 
+  warmup(): void {
+    this.ensureAudio();
+  }
+
   subscribe(listener: (snapshot: PlayerSnapshot) => void): () => void {
     this.listeners.add(listener);
     listener(this.snapshot);
@@ -110,6 +114,15 @@ class Player {
 
   getQueue(): Track[] {
     return this.order.map((index) => this.tracks[index]).filter(Boolean);
+  }
+
+  getNextTrack(): Track | null {
+    if (this.position < 0 || this.order.length === 0) return null;
+    if (this.position + 1 < this.order.length) {
+      return this.tracks[this.order[this.position + 1]] ?? null;
+    }
+    if (this.repeat === "all") return this.tracks[this.order[0]] ?? null;
+    return null;
   }
 
   setQueue(tracks: Track[], startIndex: number): void {
@@ -449,6 +462,14 @@ class Player {
     this.objectUrl = objectUrl;
 
     const audio = this.ensureAudio();
+    const startedAt = performance.now();
+    audio.addEventListener(
+      "playing",
+      () => {
+        console.info(`[VaultMusic] audio start ${Math.round(performance.now() - startedAt)}ms`);
+      },
+      { once: true }
+    );
     audio.src = url;
     this.needsLoad = false;
     this.updateMediaSession();

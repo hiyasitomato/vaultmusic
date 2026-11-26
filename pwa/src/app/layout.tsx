@@ -26,6 +26,12 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ja">
+      <head>
+        <link rel="preconnect" href="https://www.googleapis.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://content.googleapis.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://www.googleapis.com" />
+        <link rel="dns-prefetch" href="https://drive.usercontent.google.com" />
+      </head>
       <body>{children}</body>
     </html>
   );
