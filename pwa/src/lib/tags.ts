@@ -65,6 +65,7 @@ export function applyTagsToLibrary(
     name: folder.name,
   }));
   const next = buildLibrary(files, folders, library.folderId);
+  next.tagsScannedAt = Math.max(0, ...Object.values(tags).map((item) => item.scannedAt));
   const byId = new Map(tagged.map((track) => [track.id, track]));
   next.tracks = next.tracks.map((track) => {
     const original = byId.get(track.id);

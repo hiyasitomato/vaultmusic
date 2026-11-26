@@ -458,7 +458,13 @@ export default function App() {
             () => ({} as Record<string, never>)
           );
           const hasStoredTags = Object.keys(storedTags).length > 0;
-          const enriched = hasStoredTags ? applyTagsToLibrary(cached, storedTags) : cached;
+          const latestScan = Math.max(
+            0,
+            ...Object.values(storedTags).map((item) => item.scannedAt)
+          );
+          const shouldApply =
+            hasStoredTags && (cached.tagsScannedAt ?? 0) !== latestScan;
+          const enriched = shouldApply ? applyTagsToLibrary(cached, storedTags) : cached;
           setTagCount(Object.keys(storedTags).length);
           setLibrary(enriched);
           setAuthState(peekToken() ? "online" : "cached");

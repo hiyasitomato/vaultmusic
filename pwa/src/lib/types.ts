@@ -79,6 +79,7 @@ export interface Library {
   artists: ArtistSummary[];
   folderId: string;
   builtAt: number;
+  tagsScannedAt?: number;
 }
 
 export interface Playlist {
