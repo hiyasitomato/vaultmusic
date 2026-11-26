@@ -98,7 +98,7 @@ export function FullPlayer({
         <div className="mt-4 flex flex-1 flex-col items-center justify-center">
           <CoverArt
             title={track.title}
-            url={coverUrl ?? track.coverThumb ?? track.thumbnailLink}
+            url={coverUrl ?? track.coverThumb ?? track.artworkUrl ?? track.thumbnailLink}
             size="hero"
             className="mx-auto max-w-[300px] shadow-2xl"
           />

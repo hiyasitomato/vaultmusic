@@ -50,6 +50,7 @@ export interface Track {
   coverThumb?: string;
   coverTrackId?: string;
   youtubeId?: string;
+  artworkUrl?: string;
   genre?: string;
   tagsApplied?: boolean;
   playable: boolean;

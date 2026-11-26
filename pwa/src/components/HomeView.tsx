@@ -53,7 +53,7 @@ function TrackCard({
       <div className="relative">
         <CoverArt
           title={track.title}
-          url={track.coverThumb ?? track.thumbnailLink}
+          url={track.coverThumb ?? track.artworkUrl ?? track.thumbnailLink}
           size="shelf"
           className="transition-transform duration-300 group-hover:scale-[1.03]"
         />
@@ -193,7 +193,7 @@ export function HomeView({
           onClick={onResume}
           className="mt-4 flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-left active:bg-white/[0.07]"
         >
-          <CoverArt title={currentTrack.title} url={currentTrack.coverThumb ?? currentTrack.thumbnailLink} size="md" />
+          <CoverArt title={currentTrack.title} url={currentTrack.coverThumb ?? currentTrack.artworkUrl ?? currentTrack.thumbnailLink} size="md" />
           <div className="min-w-0 flex-1">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-rose-300">
               続きから

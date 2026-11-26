@@ -1,7 +1,7 @@
 const DB_NAME = "vaultmusic";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
-export type StoreName = "kv" | "audio" | "covers" | "downloads" | "tags";
+export type StoreName = "kv" | "audio" | "covers" | "downloads" | "tags" | "artwork";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -14,7 +14,7 @@ function openDb(): Promise<IDBDatabase> {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
-      for (const store of ["kv", "audio", "covers", "downloads", "tags"] as StoreName[]) {
+      for (const store of ["kv", "audio", "covers", "downloads", "tags", "artwork"] as StoreName[]) {
         if (!db.objectStoreNames.contains(store)) {
           db.createObjectStore(store);
         }

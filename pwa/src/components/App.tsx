@@ -22,6 +22,7 @@ import {
   clearDownloads,
   downloadTrack as saveTrackToDb,
   getAllTrackTags,
+  getAllArtwork,
   getAudioBlob,
   getCachedCatalog,
   getCachedCover,
@@ -39,6 +40,7 @@ import {
   buildGenreCounts,
   buildGenreMap,
 } from "@/lib/genres";
+import { applyArtwork, findArtworkForTracks, type ArtworkProgress } from "@/lib/artwork";
 import { player } from "@/lib/player";
 import { usePlayerUI } from "@/lib/usePlayer";
 import {
@@ -96,6 +98,9 @@ export default function App() {
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [tagCount, setTagCount] = useState(0);
   const [metaScan, setMetaScan] = useState<(ScanProgress & { running: boolean }) | null>(null);
+  const [artworkScan, setArtworkScan] = useState<
+    (ArtworkProgress & { running: boolean }) | null
+  >(null);
   const [genreEditor, setGenreEditor] = useState<{
     trackIds: string[];
     title: string;
@@ -111,6 +116,8 @@ export default function App() {
   const prefetched = useRef<Set<string>>(new Set());
   const stopScanRef = useRef(false);
   const scanRunningRef = useRef(false);
+  const stopArtworkRef = useRef(false);
+  const artworkRunningRef = useRef(false);
 
   function showToast(message: string): void {
     setToast(message);
@@ -188,15 +195,17 @@ export default function App() {
     const lib = enrichYouTubeThumbnails(
       hasStoredTags ? applyTagsToLibrary(built, storedTags) : built
     );
+    const artwork = await getAllArtwork().catch(() => ({} as Record<string, never>));
+    const withArtwork = applyArtwork(lib, artwork);
     setTagCount(Object.keys(storedTags).length);
     try {
-      await cacheCatalog(lib);
+      await cacheCatalog(withArtwork);
     } catch {
       // キャッシュに失敗しても、今回のセッションでは表示できる
     }
-    setLibrary(lib);
+    setLibrary(withArtwork);
     setAuthState("online");
-    maybeRestore(lib);
+    maybeRestore(withArtwork);
     setDownloads(await getDownloadedIds().catch(() => new Set<string>()));
     await refreshStorage();
     showToast(`${lib.tracks.length}曲を読み込みました`);
@@ -308,6 +317,37 @@ export default function App() {
     } finally {
       scanRunningRef.current = false;
       setMetaScan((prev) => (prev ? { ...prev, running: false } : prev));
+    }
+  }
+
+  async function lookupArtwork(force = false): Promise<void> {
+    if (!library || artworkRunningRef.current) return;
+    artworkRunningRef.current = true;
+    stopArtworkRef.current = false;
+    setArtworkScan({ running: true, done: 0, total: 0, found: 0, failed: 0 });
+    showToast("サムネイルを検索中…（中止できます）");
+    try {
+      const result = await findArtworkForTracks(library.tracks, {
+        force,
+        shouldStop: () => stopArtworkRef.current,
+        onProgress: (progress) => setArtworkScan({ ...progress, running: true }),
+      });
+      const artwork = await getAllArtwork().catch(() => ({} as Record<string, never>));
+      const enriched = applyArtwork(library, artwork);
+      setLibrary(enriched);
+      await cacheCatalog(enriched).catch(() => undefined);
+      showToast(
+        stopArtworkRef.current
+          ? "検索を中止しました"
+          : result.total === 0
+            ? "検索対象の曲がありません"
+            : `サムネイルを${result.found}曲分取得しました`
+      );
+    } catch (error) {
+      showToast(errorMessage(error));
+    } finally {
+      artworkRunningRef.current = false;
+      setArtworkScan((prev) => (prev ? { ...prev, running: false } : prev));
     }
   }
 
@@ -490,11 +530,15 @@ export default function App() {
           const enriched = enrichYouTubeThumbnails(
             shouldApply ? applyTagsToLibrary(cached, storedTags) : cached
           );
+          const artwork = await getAllArtwork().catch(
+            () => ({} as Record<string, never>)
+          );
+          const withArtwork = applyArtwork(enriched, artwork);
           setTagCount(Object.keys(storedTags).length);
-          setLibrary(enriched);
+          setLibrary(withArtwork);
           setAuthState(peekToken() ? "online" : "cached");
-          maybeRestore(enriched);
-          if (enriched !== cached) void cacheCatalog(enriched).catch(() => undefined);
+          maybeRestore(withArtwork);
+          if (withArtwork !== cached) void cacheCatalog(withArtwork).catch(() => undefined);
         }
         setDownloads(await getDownloadedIds().catch(() => new Set<string>()));
         await refreshStorage();
@@ -579,7 +623,7 @@ export default function App() {
     player.configure({
       getToken: () => getValidToken(settingsRef.current?.clientId ?? ""),
       allowCellular: () => settingsRef.current?.allowCellular ?? true,
-      coverUrl: (track) => track.thumbnailLink ?? null,
+      coverUrl: (track) => track.artworkUrl ?? track.thumbnailLink ?? null,
       getCacheLimit: () =>
         settingsRef.current?.cacheLimitBytes ?? DEFAULT_SETTINGS.cacheLimitBytes,
       onCached: () => {
@@ -617,7 +661,9 @@ export default function App() {
       URL.revokeObjectURL(coverObjectUrl.current);
       coverObjectUrl.current = null;
     }
-    setCoverUrl(track?.coverThumb ?? track?.thumbnailLink ?? null);
+    setCoverUrl(
+      track?.coverThumb ?? track?.artworkUrl ?? track?.thumbnailLink ?? null
+    );
     if (!track) return;
     const coverId = track.coverTrackId ?? track.id;
     let cancelled = false;
@@ -635,6 +681,7 @@ export default function App() {
           return;
         }
         if (track.coverThumb) return;
+        if (track.artworkUrl) return;
         const local = await getAudioBlob(track.id);
         let head: Blob | null = null;
         if (local) {
@@ -798,6 +845,12 @@ export default function App() {
       genreList={genreList}
       metaScan={metaScan}
       tagCount={tagCount}
+      artworkScan={artworkScan}
+      onLookupArtwork={() => void lookupArtwork(false)}
+      onStopArtwork={() => {
+        stopArtworkRef.current = true;
+        showToast("検索を中止しています…");
+      }}
       estimatedBytes={estimateScanBytes(library.tracks)}
       onScanTags={(force) => void scanTags(force)}
       onStopScan={() => {

@@ -40,7 +40,7 @@ export function TrackGridCard({
       >
         <CoverArt
           title={track.title}
-          url={track.coverThumb ?? track.thumbnailLink}
+          url={track.coverThumb ?? track.artworkUrl ?? track.thumbnailLink}
           size="fill"
           className="transition-transform duration-500 group-hover:scale-[1.04]"
         />

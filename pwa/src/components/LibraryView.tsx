@@ -6,6 +6,7 @@ import {
   Disc3,
   Heart,
   History,
+  Image as ImageIcon,
   ListMusic,
   Plus,
   Tags,
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 import type { Library, Track, UserData } from "@/lib/types";
 import type { ScanProgress } from "@/lib/scan";
+import type { ArtworkProgress } from "@/lib/artwork";
 import { formatBytes } from "@/lib/format";
 import { tracksFor } from "@/lib/library";
 import { CoverArt } from "./CoverArt";
@@ -35,10 +37,13 @@ export function LibraryView({
   userData,
   genreList,
   metaScan,
+  artworkScan,
   tagCount,
   estimatedBytes,
   onScanTags,
   onStopScan,
+  onLookupArtwork,
+  onStopArtwork,
   onCreatePlaylist,
   onDeletePlaylist,
   onOpen,
@@ -47,10 +52,13 @@ export function LibraryView({
   userData: UserData;
   genreList: { name: string; count: number; color: string }[];
   metaScan: (ScanProgress & { running: boolean }) | null;
+  artworkScan: (ArtworkProgress & { running: boolean }) | null;
   tagCount: number;
   estimatedBytes: number;
   onScanTags: (force?: boolean) => void;
   onStopScan: () => void;
+  onLookupArtwork: () => void;
+  onStopArtwork: () => void;
   onCreatePlaylist: () => void;
   onDeletePlaylist: (id: string) => void;
   onOpen: (kind: Tab, id?: string) => void;
@@ -58,6 +66,10 @@ export function LibraryView({
   const [tab, setTab] = useState<Tab>("folders");
   const totalTracks = library.tracks.length;
   const progress = metaScan && metaScan.total > 0 ? (metaScan.done / metaScan.total) * 100 : 0;
+  const artworkProgress =
+    artworkScan && artworkScan.total > 0
+      ? (artworkScan.done / artworkScan.total) * 100
+      : 0;
 
   return (
     <div>
@@ -110,6 +122,51 @@ export function LibraryView({
             約 {formatBytes(estimatedBytes)}。Wi-Fi推奨。埋め込みアートとタグ（曲名・アーティスト・アルバム）を読み取ります。
           </div>
         ) : null}
+
+        <div className="mt-3 flex items-center gap-2 border-t border-white/5 pt-2">
+          <ImageIcon className="h-4 w-4 text-sky-400" />
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] font-semibold text-zinc-200">サムネイル検索</div>
+            <div className="text-[10px] text-zinc-500">
+              曲名・アーティストから公開カタログを検索
+            </div>
+          </div>
+          {artworkScan?.running ? (
+            <button
+              type="button"
+              onClick={onStopArtwork}
+              className="rounded-full border border-white/10 px-3 py-1 text-[11px] text-zinc-300"
+            >
+              中止
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onLookupArtwork}
+              className="rounded-full border border-sky-400/30 bg-sky-500/10 px-3 py-1 text-[11px] font-semibold text-sky-300"
+            >
+              名前から取得
+            </button>
+          )}
+        </div>
+        {artworkScan?.running ? (
+          <>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/40">
+              <div
+                className="h-full rounded-full bg-sky-400 transition-[width]"
+                style={{ width: `${artworkProgress}%` }}
+              />
+            </div>
+            <div className="mt-1 text-[10px] text-zinc-500">
+              {artworkScan.done} / {artworkScan.total} 曲 ・ 取得 {artworkScan.found}
+              {artworkScan.failed > 0 ? ` ・ 失敗 ${artworkScan.failed}` : ""}
+            </div>
+          </>
+        ) : (
+          <div className="mt-1 text-[10px] text-zinc-500">
+            YouTube IDが無い／無効な曲を、Deezer・iTunesの公開カタログから探します。
+          </div>
+        )}
       </div>
 
       <div className="no-scrollbar -mx-1 mt-2 flex gap-1.5 overflow-x-auto px-1">
@@ -143,7 +200,7 @@ export function LibraryView({
                 >
                   <CoverArt
                     title={folder.name}
-                    url={first?.coverThumb ?? first?.thumbnailLink}
+                    url={first?.coverThumb ?? first?.artworkUrl ?? first?.thumbnailLink}
                     size="md"
                   />
                   <div className="min-w-0 flex-1">
@@ -191,7 +248,7 @@ export function LibraryView({
                   >
                     <CoverArt
                       title={album.title}
-                      url={first?.coverThumb ?? first?.thumbnailLink}
+                      url={first?.coverThumb ?? first?.artworkUrl ?? first?.thumbnailLink}
                       size="fill"
                       className="transition-transform duration-300 group-hover:scale-[1.03]"
                     />

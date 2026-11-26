@@ -74,6 +74,7 @@ export function applyTagsToLibrary(
       ...track,
       coverThumb: original.coverThumb,
       coverTrackId: original.coverTrackId,
+      artworkUrl: original.artworkUrl,
       tagsApplied: original.tagsApplied,
       genre: original.genre,
       sizeBytes: original.sizeBytes,

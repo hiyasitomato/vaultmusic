@@ -148,3 +148,21 @@ export async function getAllTrackTags(): Promise<Record<string, StoredTrackTags>
 export async function getTrackTags(trackId: string): Promise<StoredTrackTags | null> {
   return dbGet<StoredTrackTags>("tags", trackId);
 }
+
+export interface StoredArtwork {
+  trackId: string;
+  url: string;
+  source: "youtube" | "deezer" | "itunes" | "none";
+  at: number;
+}
+
+export async function putArtwork(artwork: StoredArtwork): Promise<void> {
+  await dbPut("artwork", artwork.trackId, artwork);
+}
+
+export async function getAllArtwork(): Promise<Record<string, StoredArtwork>> {
+  const all = await dbAll<StoredArtwork>("artwork");
+  const result: Record<string, StoredArtwork> = {};
+  for (const item of all) result[item.trackId] = item;
+  return result;
+}
