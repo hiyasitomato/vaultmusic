@@ -1,5 +1,5 @@
 import type { PlayerSnapshot, QueueState, RepeatMode, Track } from "./types";
-import { getAudioBlob } from "./offline";
+import { cacheAudioBlob, getAudioBlob } from "./offline";
 import { fetchFileBytes, swMediaUrl } from "./drive";
 import { formatTime } from "./format";
 
@@ -78,6 +78,8 @@ class Player {
     allowCellular: () => boolean;
     coverUrl: (track: Track) => string | null;
     onDuration?: (trackId: string, seconds: number) => void;
+    getCacheLimit?: () => number;
+    onCached?: (trackId: string) => void;
   } = {
     getToken: () => Promise.reject(new Error("ログインが必要です")),
     allowCellular: () => false,
@@ -121,12 +123,22 @@ class Player {
   }
 
   getNextTrack(): Track | null {
-    if (this.position < 0 || this.order.length === 0) return null;
-    if (this.position + 1 < this.order.length) {
-      return this.tracks[this.order[this.position + 1]] ?? null;
+    return this.getUpcomingTracks(1)[0] ?? null;
+  }
+
+  getUpcomingTracks(count: number): Track[] {
+    if (this.position < 0 || this.order.length === 0) return [];
+    const out: Track[] = [];
+    for (let step = 1; step <= count; step += 1) {
+      const pos = this.position + step;
+      let index: number | null = null;
+      if (pos < this.order.length) index = this.order[pos];
+      else if (this.repeat === "all") index = this.order[pos % this.order.length];
+      if (index === null) break;
+      const track = this.tracks[index];
+      if (track && !out.some((item) => item.id === track.id)) out.push(track);
     }
-    if (this.repeat === "all") return this.tracks[this.order[0]] ?? null;
-    return null;
+    return out;
   }
 
   setQueue(tracks: Track[], startIndex: number): void {
@@ -450,12 +462,14 @@ class Player {
         if (this.deps.allowCellular() || this.forceStreamOnce) {
           const accessToken = await this.deps.getToken();
           this.accessToken = accessToken;
-          const canStream = await this.waitForController(800);
+          const canStream =
+            typeof navigator !== "undefined" && Boolean(navigator.serviceWorker?.controller);
           if (canStream) {
             url = swMediaUrl(track.id, accessToken);
             streaming = true;
           } else {
             const raw = await fetchFileBytes(track.id, accessToken);
+            this.cacheBlob(track, raw);
             objectUrl = URL.createObjectURL(this.withAudioType(track, raw));
             url = objectUrl;
           }
@@ -523,34 +537,17 @@ class Player {
     }
   }
 
-  private async waitForController(timeoutMs: number): Promise<boolean> {
-    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return false;
-    if (navigator.serviceWorker.controller) return true;
-    return new Promise<boolean>((resolve) => {
-      let settled = false;
-      const finish = (value: boolean) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        navigator.serviceWorker.removeEventListener("controllerchange", onChange);
-        resolve(value);
-      };
-      const onChange = () => finish(true);
-      const timer = setTimeout(
-        () => finish(Boolean(navigator.serviceWorker.controller)),
-        timeoutMs
-      );
-      navigator.serviceWorker.addEventListener("controllerchange", onChange, { once: true });
-      navigator.serviceWorker.ready
-        .then(() => {
-          if (navigator.serviceWorker.controller) finish(true);
-        })
-        .catch(() => undefined);
-    });
+  private cacheBlob(track: Track, blob: Blob): void {
+    const limit = this.deps.getCacheLimit?.() ?? 1.5 * 1024 ** 3;
+    void cacheAudioBlob(track.id, blob, limit)
+      .then(() => {
+        this.downloadedIds.add(track.id);
+        this.deps.onCached?.(track.id);
+      })
+      .catch(() => undefined);
   }
 
-  private withAudioType(track: Track, blob: Blob): Blob {
-    if (blob.type.startsWith("audio/")) return blob;
+  private withAudioType(track: Track, blob: Blob): Blob {    if (blob.type.startsWith("audio/")) return blob;
     const name = track.fileName.toLowerCase();
     const type = track.mimeType.startsWith("audio/")
       ? track.mimeType
@@ -578,6 +575,7 @@ class Player {
       const token = await this.deps.getToken();
       const raw = await fetchFileBytes(pending.track.id, token);
       if (loadToken !== this.loadToken) return;
+      this.cacheBlob(pending.track, raw);
       const blob = this.withAudioType(pending.track, raw);
       const url = URL.createObjectURL(blob);
       if (this.objectUrl) URL.revokeObjectURL(this.objectUrl);

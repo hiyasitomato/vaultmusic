@@ -83,6 +83,21 @@ export async function downloadTrack(
   await enforceLimit(limitBytes, track.id);
 }
 
+export async function cacheAudioBlob(
+  trackId: string,
+  blob: Blob,
+  limitBytes: number
+): Promise<void> {
+  await requestPersistence();
+  await dbPut("audio", trackId, blob);
+  await dbPut("downloads", trackId, {
+    trackId,
+    size: blob.size,
+    at: Date.now(),
+  } satisfies DownloadEntry);
+  await enforceLimit(limitBytes, trackId);
+}
+
 export async function storageUsage(): Promise<{ usage: number; quota: number }> {
   try {
     const estimate = await navigator.storage?.estimate?.();

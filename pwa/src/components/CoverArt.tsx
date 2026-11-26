@@ -38,6 +38,7 @@ export function CoverArt({
           src={url}
           alt=""
           loading="lazy"
+          decoding="async"
           onError={() => setFailed(true)}
           className="absolute inset-0 h-full w-full object-cover"
         />

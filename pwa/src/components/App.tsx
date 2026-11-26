@@ -12,13 +12,7 @@ import {
   Settings2,
   WifiOff,
 } from "lucide-react";
-import type {
-  Library as LibraryData,
-  PlayerSnapshot,
-  Settings,
-  Track,
-  UserData,
-} from "@/lib/types";
+import type { Library as LibraryData, Settings, Track, UserData } from "@/lib/types";
 import { DEFAULT_SETTINGS, extractFolderId, loadSettings, saveSettings } from "@/lib/config";
 import { forgetToken, getValidToken, peekToken, requestToken, revokeToken } from "@/lib/auth";
 import { fetchFileBytes, findFolderByName, listMusicFolder } from "@/lib/drive";
@@ -37,6 +31,7 @@ import {
 } from "@/lib/offline";
 import { coverToBlob, extractCover } from "@/lib/metadata";
 import { player } from "@/lib/player";
+import { usePlayerUI } from "@/lib/usePlayer";
 import {
   addToPlaylist,
   createPlaylist,
@@ -68,7 +63,7 @@ export default function App() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [library, setLibrary] = useState<LibraryData | null>(null);
   const [userData, setUserData] = useState<UserData>(() => getUserData());
-  const [snapshot, setSnapshot] = useState<PlayerSnapshot>(() => player.getState());
+  const snapshot = usePlayerUI();
   const [downloads, setDownloads] = useState<Set<string>>(new Set());
   const [downloading, setDownloading] = useState<Set<string>>(new Set());
   const [savedBytes, setSavedBytes] = useState(0);
@@ -410,11 +405,9 @@ export default function App() {
     if (existingToken) player.setAccessToken(existingToken);
     player.warmup();
     setUserData(getUserData());
-    setSnapshot(player.getState());
     setOnline(typeof navigator === "undefined" ? true : navigator.onLine);
 
     const unsubscribeUser = subscribeUserData(() => setUserData(getUserData()));
-    const unsubscribePlayer = player.subscribe((next) => setSnapshot(next));
 
     void (async () => {
       try {
@@ -444,7 +437,6 @@ export default function App() {
 
     return () => {
       unsubscribeUser();
-      unsubscribePlayer();
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOnline);
       if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -471,7 +463,7 @@ export default function App() {
   }, [downloads]);
 
   useEffect(() => {
-    if (!settings?.clientId) return;
+    if (!settings?.clientId || !library) return;
     if (peekToken()) return;
     let cancelled = false;
     void getValidToken(settings.clientId)
@@ -484,15 +476,21 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [settings?.clientId]);
+  }, [settings?.clientId, library]);
 
   useEffect(() => {
     if (!settings?.allowCellular || !snapshot.isPlaying || !snapshot.trackId) return;
-    const next = player.getNextTrack();
-    if (!next || downloads.has(next.id)) return;
+    const upcoming = player
+      .getUpcomingTracks(2)
+      .filter((track) => !downloads.has(track.id));
+    if (upcoming.length === 0) return;
     const timer = setTimeout(() => {
-      void prefetchTrack(next);
-    }, 12000);
+      void (async () => {
+        for (const track of upcoming) {
+          await prefetchTrack(track);
+        }
+      })();
+    }, 10000);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshot.trackId, snapshot.isPlaying, settings?.allowCellular, downloads]);
@@ -503,6 +501,14 @@ export default function App() {
       getToken: () => getValidToken(settingsRef.current?.clientId ?? ""),
       allowCellular: () => settingsRef.current?.allowCellular ?? true,
       coverUrl: (track) => track.thumbnailLink ?? null,
+      getCacheLimit: () =>
+        settingsRef.current?.cacheLimitBytes ?? DEFAULT_SETTINGS.cacheLimitBytes,
+      onCached: () => {
+        void getDownloadedIds()
+          .then((ids) => setDownloads(ids))
+          .catch(() => undefined);
+        void refreshStorage();
+      },
       onDuration: (trackId, seconds) => {
         setLibrary((prev) => {
           if (!prev) return prev;
@@ -639,7 +645,6 @@ export default function App() {
       library={library}
       userData={userData}
       downloads={downloads}
-      snapshot={snapshot}
       currentTrack={currentTrack}
       savedBytes={savedBytes}
       limitBytes={settings.cacheLimitBytes}
@@ -744,7 +749,6 @@ export default function App() {
       {currentTrack ? (
         <PlayerBar
           track={currentTrack}
-          snapshot={snapshot}
           onToggle={() => void player.toggle()}
           onNext={() => void player.next(true)}
           onOpen={() => setFullPlayer(true)}
@@ -782,7 +786,6 @@ export default function App() {
       {fullPlayer && currentTrack ? (
         <FullPlayer
           track={currentTrack}
-          snapshot={snapshot}
           coverUrl={coverUrl}
           favorite={userData.favorites.tracks.includes(currentTrack.id)}
           downloaded={downloads.has(currentTrack.id)}

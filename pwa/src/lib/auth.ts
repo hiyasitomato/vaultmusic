@@ -38,8 +38,39 @@ export class AuthError extends Error {
   }
 }
 
+const TOKEN_STORAGE_KEY = "vaultmusic.token.v1";
+
 let gisPromise: Promise<void> | null = null;
-let cached: { token: string; expiresAt: number; clientId: string } | null = null;
+
+interface CachedToken {
+  token: string;
+  expiresAt: number;
+  clientId: string;
+}
+
+function loadStoredToken(): CachedToken | null {
+  try {
+    const raw = window.sessionStorage.getItem(TOKEN_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedToken;
+    if (parsed.expiresAt > Date.now() + 60_000) return parsed;
+    window.sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+  } catch {
+    // 無視
+  }
+  return null;
+}
+
+function storeToken(token: CachedToken): void {
+  try {
+    window.sessionStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(token));
+  } catch {
+    // 無視
+  }
+}
+
+let cached: CachedToken | null =
+  typeof window !== "undefined" ? loadStoredToken() : null;
 
 function loadGis(): Promise<void> {
   if (typeof window === "undefined") {
@@ -99,6 +130,7 @@ export async function requestToken(
         if (response.access_token) {
           const expiresAt = Date.now() + Math.max(60, Number(response.expires_in ?? 3600) - 30) * 1000;
           cached = { token: response.access_token, expiresAt, clientId };
+          storeToken(cached);
           settled = true;
           if (timer) clearTimeout(timer);
           resolve({ token: response.access_token, expiresAt });
@@ -143,11 +175,16 @@ export function peekToken(): string | null {
 
 export function forgetToken(): void {
   cached = null;
+  try {
+    window.sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+  } catch {
+    // 無視
+  }
 }
 
 export function revokeToken(): void {
   if (cached && window.google?.accounts?.oauth2) {
     window.google.accounts.oauth2.revoke(cached.token, () => undefined);
   }
-  cached = null;
+  forgetToken();
 }

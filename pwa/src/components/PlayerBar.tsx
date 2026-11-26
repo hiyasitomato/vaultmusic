@@ -1,22 +1,22 @@
 "use client";
 
 import { Pause, Play, SkipForward } from "lucide-react";
-import type { PlayerSnapshot, Track } from "@/lib/types";
+import type { Track } from "@/lib/types";
+import { usePlayerLive } from "@/lib/usePlayer";
 import { CoverArt } from "./CoverArt";
 
 export function PlayerBar({
   track,
-  snapshot,
   onToggle,
   onNext,
   onOpen,
 }: {
   track: Track;
-  snapshot: PlayerSnapshot;
   onToggle: () => void;
   onNext: () => void;
   onOpen: () => void;
 }) {
+  const snapshot = usePlayerLive();
   const progress =
     snapshot.duration > 0 ? Math.min(100, (snapshot.time / snapshot.duration) * 100) : 0;
   return (

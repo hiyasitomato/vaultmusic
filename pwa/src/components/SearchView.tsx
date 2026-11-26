@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useDeferredValue, useState } from "react";
 import { Search } from "lucide-react";
 import type { Library, PlayerSnapshot, Track, UserData } from "@/lib/types";
 import { searchTracks } from "@/lib/library";
@@ -26,7 +26,8 @@ export function SearchView({
   onDownload: (track: Track) => void;
 }) {
   const [query, setQuery] = useState("");
-  const results = query.trim() ? searchTracks(library, query) : [];
+  const deferredQuery = useDeferredValue(query);
+  const results = deferredQuery.trim() ? searchTracks(library, deferredQuery) : [];
 
   return (
     <div>

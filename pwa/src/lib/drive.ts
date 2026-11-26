@@ -101,7 +101,7 @@ export async function listMusicFolder(
 
   while (queue.length > 0 && seen.size < 2000) {
     const batch: string[] = [];
-    while (queue.length > 0 && batch.length < 6) {
+    while (queue.length > 0 && batch.length < 8) {
       const id = queue.shift();
       if (id && !seen.has(id)) {
         seen.add(id);

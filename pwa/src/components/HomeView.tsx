@@ -11,8 +11,8 @@ import {
   Shuffle,
   Sparkles,
 } from "lucide-react";
-import type { Library, PlayerSnapshot, Track, UserData } from "@/lib/types";
-import { formatBytes, formatTime } from "@/lib/format";
+import type { Library, Track, UserData } from "@/lib/types";
+import { formatBytes } from "@/lib/format";
 import { CoverArt } from "./CoverArt";
 
 function Section({
@@ -61,7 +61,6 @@ export function HomeView({
   library,
   userData,
   downloads,
-  snapshot,
   currentTrack,
   savedBytes,
   limitBytes,
@@ -75,7 +74,6 @@ export function HomeView({
   library: Library;
   userData: UserData;
   downloads: Set<string>;
-  snapshot: PlayerSnapshot;
   currentTrack: Track | null;
   savedBytes: number;
   limitBytes: number;
@@ -180,7 +178,6 @@ export function HomeView({
             <div className="truncate text-sm font-medium">{currentTrack.title}</div>
             <div className="truncate text-[11px] text-zinc-400">
               {currentTrack.artist || "不明なアーティスト"}
-              {snapshot.time > 0 ? ` · ${formatTime(snapshot.time)} から` : ""}
             </div>
           </div>
           <Play className="h-5 w-5 fill-current text-white" />

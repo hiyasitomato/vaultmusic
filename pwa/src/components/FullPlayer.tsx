@@ -16,15 +16,15 @@ import {
   SkipForward,
   Timer,
 } from "lucide-react";
-import type { PlayerSnapshot, RepeatMode, Track } from "@/lib/types";
+import type { RepeatMode, Track } from "@/lib/types";
 import { formatTime } from "@/lib/format";
+import { usePlayerLive } from "@/lib/usePlayer";
 import { CoverArt } from "./CoverArt";
 
 const SLEEP_OPTIONS = [0, 15, 30, 45, 60];
 
 export function FullPlayer({
   track,
-  snapshot,
   coverUrl,
   favorite,
   downloaded,
@@ -42,7 +42,6 @@ export function FullPlayer({
   onAddToPlaylist,
 }: {
   track: Track;
-  snapshot: PlayerSnapshot;
   coverUrl: string | null;
   favorite: boolean;
   downloaded: boolean;
@@ -59,6 +58,7 @@ export function FullPlayer({
   onToggleFavorite: () => void;
   onAddToPlaylist: () => void;
 }) {
+  const snapshot = usePlayerLive();
   const [sleepOpen, setSleepOpen] = useState(false);
   const duration = snapshot.duration || track.durationSec || 0;
   const progress = duration > 0 ? Math.min(100, (snapshot.time / duration) * 100) : 0;
