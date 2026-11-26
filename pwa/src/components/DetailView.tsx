@@ -96,7 +96,7 @@ export function DetailView({
                 >
                   <CoverArt
                     title={album.title}
-                    url={first?.thumbnailLink}
+                    url={first?.coverThumb ?? first?.thumbnailLink}
                     size="fill"
                   />
                   <div className="mt-1.5 truncate text-[13px] font-medium">{album.title}</div>

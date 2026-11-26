@@ -119,3 +119,32 @@ export async function getCachedCover(key: string): Promise<Blob | null> {
 export async function putCachedCover(key: string, blob: Blob): Promise<void> {
   await dbPut("covers", key, blob);
 }
+
+export interface StoredTrackTags {
+  trackId: string;
+  title?: string;
+  artist?: string;
+  album?: string;
+  albumArtist?: string;
+  trackNo?: number;
+  discNo?: number;
+  year?: number;
+  genre?: string;
+  coverThumb?: string;
+  scannedAt: number;
+}
+
+export async function putTrackTags(tags: StoredTrackTags): Promise<void> {
+  await dbPut("tags", tags.trackId, tags);
+}
+
+export async function getAllTrackTags(): Promise<Record<string, StoredTrackTags>> {
+  const all = await dbAll<StoredTrackTags>("tags");
+  const result: Record<string, StoredTrackTags> = {};
+  for (const tags of all) result[tags.trackId] = tags;
+  return result;
+}
+
+export async function getTrackTags(trackId: string): Promise<StoredTrackTags | null> {
+  return dbGet<StoredTrackTags>("tags", trackId);
+}

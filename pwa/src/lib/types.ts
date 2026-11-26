@@ -47,6 +47,10 @@ export interface Track {
   mimeType: string;
   modifiedTime: string;
   thumbnailLink?: string;
+  coverThumb?: string;
+  coverTrackId?: string;
+  genre?: string;
+  tagsApplied?: boolean;
   playable: boolean;
 }
 

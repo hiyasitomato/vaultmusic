@@ -21,6 +21,7 @@ import {
   cacheCatalog,
   clearDownloads,
   downloadTrack as saveTrackToDb,
+  getAllTrackTags,
   getAudioBlob,
   getCachedCatalog,
   getCachedCover,
@@ -30,6 +31,8 @@ import {
   storageUsage,
 } from "@/lib/offline";
 import { coverToBlob, extractCover } from "@/lib/metadata";
+import { estimateScanBytes, scanLibraryMetadata, type ScanProgress } from "@/lib/scan";
+import { applyTagsToLibrary } from "@/lib/tags";
 import { player } from "@/lib/player";
 import { usePlayerUI } from "@/lib/usePlayer";
 import {
@@ -80,6 +83,8 @@ export default function App() {
   const [fullPlayer, setFullPlayer] = useState(false);
   const [playlistPicker, setPlaylistPicker] = useState(false);
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
+  const [tagCount, setTagCount] = useState(0);
+  const [metaScan, setMetaScan] = useState<(ScanProgress & { running: boolean }) | null>(null);
 
   const settingsRef = useRef<Settings | null>(null);
   const restoredRef = useRef(false);
@@ -88,6 +93,8 @@ export default function App() {
   const lastRecorded = useRef<string | null>(null);
   const downloadBusy = useRef(false);
   const prefetched = useRef<Set<string>>(new Set());
+  const stopScanRef = useRef(false);
+  const scanRunningRef = useRef(false);
 
   function showToast(message: string): void {
     setToast(message);
@@ -154,12 +161,16 @@ export default function App() {
     }
     const { files, folders } = listing;
     setBusyLabel(`${files.length}曲の情報を整理中…`);
-    const lib = buildLibrary(files, folders, folderId);
-    if (lib.tracks.length === 0) {
+    const built = buildLibrary(files, folders, folderId);
+    if (built.tracks.length === 0) {
       throw new Error(
         "このフォルダに音声ファイルが見つかりませんでした。音楽フォルダの URL を確認してください。"
       );
     }
+    const storedTags = await getAllTrackTags().catch(() => ({} as Record<string, never>));
+    const hasStoredTags = Object.keys(storedTags).length > 0;
+    const lib = hasStoredTags ? applyTagsToLibrary(built, storedTags) : built;
+    setTagCount(Object.keys(storedTags).length);
     try {
       await cacheCatalog(lib);
     } catch {
@@ -249,6 +260,36 @@ export default function App() {
       setDownloads(await getDownloadedIds().catch(() => new Set<string>()));
     } catch {
       prefetched.current.delete(track.id);
+    }
+  }
+
+  async function scanTags(force = false): Promise<void> {
+    if (!library || scanRunningRef.current) return;
+    scanRunningRef.current = true;
+    stopScanRef.current = false;
+    const total = library.tracks.length;
+    setMetaScan({ running: true, done: 0, total, bytes: 0, failed: 0 });
+    showToast("タグとサムネイルを取得中…（中止できます）");
+    try {
+      const token = await ensureToken(true);
+      await scanLibraryMetadata(library.tracks, token, {
+        force,
+        shouldStop: () => stopScanRef.current,
+        onProgress: (progress) => setMetaScan({ ...progress, running: true }),
+      });
+      const tags = await getAllTrackTags().catch(() => ({} as Record<string, never>));
+      setTagCount(Object.keys(tags).length);
+      const enriched = applyTagsToLibrary(library, tags);
+      setLibrary(enriched);
+      await cacheCatalog(enriched).catch(() => undefined);
+      showToast(
+        stopScanRef.current ? "取得を中止しました" : "タグとサムネイルを取得しました"
+      );
+    } catch (error) {
+      showToast(errorMessage(error));
+    } finally {
+      scanRunningRef.current = false;
+      setMetaScan((prev) => (prev ? { ...prev, running: false } : prev));
     }
   }
 
@@ -413,9 +454,16 @@ export default function App() {
       try {
         const cached = await getCachedCatalog();
         if (cached) {
-          setLibrary(cached);
+          const storedTags = await getAllTrackTags().catch(
+            () => ({} as Record<string, never>)
+          );
+          const hasStoredTags = Object.keys(storedTags).length > 0;
+          const enriched = hasStoredTags ? applyTagsToLibrary(cached, storedTags) : cached;
+          setTagCount(Object.keys(storedTags).length);
+          setLibrary(enriched);
           setAuthState(peekToken() ? "online" : "cached");
-          maybeRestore(cached);
+          maybeRestore(enriched);
+          if (enriched !== cached) void cacheCatalog(enriched).catch(() => undefined);
         }
         setDownloads(await getDownloadedIds().catch(() => new Set<string>()));
         await refreshStorage();
@@ -538,12 +586,13 @@ export default function App() {
       URL.revokeObjectURL(coverObjectUrl.current);
       coverObjectUrl.current = null;
     }
-    setCoverUrl(track?.thumbnailLink ?? null);
-    if (!track || track.thumbnailLink) return;
+    setCoverUrl(track?.coverThumb ?? track?.thumbnailLink ?? null);
+    if (!track) return;
+    const coverId = track.coverTrackId ?? track.id;
     let cancelled = false;
     void (async () => {
       try {
-        const cached = await getCachedCover(track.id);
+        const cached = await getCachedCover(coverId);
         if (cached) {
           const url = URL.createObjectURL(cached);
           if (cancelled) {
@@ -554,6 +603,7 @@ export default function App() {
           setCoverUrl(url);
           return;
         }
+        if (track.coverThumb) return;
         const local = await getAudioBlob(track.id);
         let head: Blob | null = null;
         if (local) {
@@ -673,6 +723,14 @@ export default function App() {
     <LibraryView
       library={library}
       userData={userData}
+      metaScan={metaScan}
+      tagCount={tagCount}
+      estimatedBytes={estimateScanBytes(library.tracks)}
+      onScanTags={(force) => void scanTags(force)}
+      onStopScan={() => {
+        stopScanRef.current = true;
+        showToast("取得を中止しています…");
+      }}
       onCreatePlaylist={() => {
         promptCreatePlaylist();
       }}

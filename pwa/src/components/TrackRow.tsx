@@ -39,7 +39,7 @@ export function TrackRow({
         isCurrent ? "bg-rose-500/10" : ""
       }`}
     >
-      <CoverArt title={track.title} url={track.thumbnailLink} size="sm" />
+      <CoverArt title={track.title} url={track.coverThumb ?? track.thumbnailLink} size="sm" />
       <div className="min-w-0 flex-1">
         <div
           className={`truncate text-[14px] font-medium ${

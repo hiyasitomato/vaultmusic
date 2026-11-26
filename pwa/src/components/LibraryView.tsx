@@ -9,10 +9,13 @@ import {
   History,
   ListMusic,
   Plus,
+  Tags,
   Trash2,
   User,
 } from "lucide-react";
 import type { Library, Track, UserData } from "@/lib/types";
+import type { ScanProgress } from "@/lib/scan";
+import { formatBytes } from "@/lib/format";
 import { tracksFor } from "@/lib/library";
 import { CoverArt } from "./CoverArt";
 
@@ -30,22 +33,81 @@ const TABS: { key: Tab; label: string }[] = [
 export function LibraryView({
   library,
   userData,
+  metaScan,
+  tagCount,
+  estimatedBytes,
+  onScanTags,
+  onStopScan,
   onCreatePlaylist,
   onDeletePlaylist,
   onOpen,
 }: {
   library: Library;
   userData: UserData;
+  metaScan: (ScanProgress & { running: boolean }) | null;
+  tagCount: number;
+  estimatedBytes: number;
+  onScanTags: (force?: boolean) => void;
+  onStopScan: () => void;
   onCreatePlaylist: () => void;
   onDeletePlaylist: (id: string) => void;
   onOpen: (kind: Tab, id?: string) => void;
 }) {
   const [tab, setTab] = useState<Tab>("folders");
+  const totalTracks = library.tracks.length;
+  const progress = metaScan && metaScan.total > 0 ? (metaScan.done / metaScan.total) * 100 : 0;
 
   return (
     <div>
       <div className="mt-3 flex items-center justify-between px-1">
         <h1 className="text-lg font-bold">ライブラリ</h1>
+      </div>
+
+      <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+        <div className="flex items-center gap-2">
+          <Tags className="h-4 w-4 text-emerald-400" />
+          <div className="min-w-0 flex-1">
+            <div className="text-[12px] font-semibold text-zinc-200">タグ・サムネイル</div>
+            <div className="text-[10px] text-zinc-500">
+              {tagCount} / {totalTracks} 曲 取得済み
+            </div>
+          </div>
+          {metaScan?.running ? (
+            <button
+              type="button"
+              onClick={onStopScan}
+              className="rounded-full border border-white/10 px-3 py-1 text-[11px] text-zinc-300"
+            >
+              中止
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onScanTags(tagCount >= totalTracks)}
+              className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-black"
+            >
+              {tagCount >= totalTracks ? "再取得" : "すべて取得"}
+            </button>
+          )}
+        </div>
+        {metaScan?.running ? (
+          <>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/40">
+              <div
+                className="h-full rounded-full bg-emerald-400 transition-[width]"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <div className="mt-1 text-[10px] text-zinc-500">
+              {metaScan.done} / {metaScan.total} 曲 ・ {formatBytes(metaScan.bytes)}
+              {metaScan.failed > 0 ? ` ・ 失敗 ${metaScan.failed}` : ""}
+            </div>
+          </>
+        ) : tagCount < totalTracks ? (
+          <div className="mt-1 text-[10px] leading-relaxed text-zinc-500">
+            約 {formatBytes(estimatedBytes)}。Wi-Fi推奨。埋め込みアートとタグ（曲名・アーティスト・アルバム）を読み取ります。
+          </div>
+        ) : null}
       </div>
 
       <div className="no-scrollbar -mx-1 mt-2 flex gap-1.5 overflow-x-auto px-1">
@@ -118,7 +180,7 @@ export function LibraryView({
                     onClick={() => onOpen("albums", album.key)}
                     className="text-left active:opacity-70"
                   >
-                    <CoverArt title={album.title} url={first?.thumbnailLink} size="fill" />
+                    <CoverArt title={album.title} url={first?.coverThumb ?? first?.thumbnailLink} size="fill" />
                     <div className="mt-1.5 truncate text-[13px] font-medium">{album.title}</div>
                     <div className="truncate text-[11px] text-zinc-500">
                       {album.artist} · {album.trackIds.length}曲

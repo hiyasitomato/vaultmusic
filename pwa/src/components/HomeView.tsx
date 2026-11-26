@@ -48,7 +48,7 @@ function TrackCard({
       onClick={onPlay}
       className="w-28 shrink-0 text-left active:opacity-70"
     >
-      <CoverArt title={track.title} url={track.thumbnailLink} size="card" />
+      <CoverArt title={track.title} url={track.coverThumb ?? track.thumbnailLink} size="card" />
       <div className="mt-1.5 truncate text-[12px] font-medium text-zinc-100">{track.title}</div>
       <div className="truncate text-[11px] text-zinc-400">
         {track.artist || "不明なアーティスト"}
@@ -170,7 +170,7 @@ export function HomeView({
           onClick={onResume}
           className="mt-4 flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-left active:bg-white/[0.07]"
         >
-          <CoverArt title={currentTrack.title} url={currentTrack.thumbnailLink} size="md" />
+          <CoverArt title={currentTrack.title} url={currentTrack.coverThumb ?? currentTrack.thumbnailLink} size="md" />
           <div className="min-w-0 flex-1">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-rose-300">
               続きから
