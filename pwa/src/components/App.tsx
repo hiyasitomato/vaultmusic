@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Home,
   Library,
@@ -33,14 +33,24 @@ import {
 import { coverToBlob, extractCover } from "@/lib/metadata";
 import { estimateScanBytes, scanLibraryMetadata, type ScanProgress } from "@/lib/scan";
 import { applyTagsToLibrary } from "@/lib/tags";
+import {
+  allGenreNames,
+  autoGenresForTrack,
+  buildGenreCounts,
+  buildGenreMap,
+} from "@/lib/genres";
 import { player } from "@/lib/player";
 import { usePlayerUI } from "@/lib/usePlayer";
 import {
+  addCustomGenre,
+  addGenresToTracks,
   addToPlaylist,
   createPlaylist,
   deletePlaylist as deletePlaylistData,
   getUserData,
   recordPlay,
+  removeGenresFromTracks,
+  setTrackGenres,
   subscribeUserData,
   toggleFavoriteTrack,
 } from "@/lib/userData";
@@ -54,6 +64,7 @@ import { FullPlayer } from "./FullPlayer";
 import { SettingsView } from "./SettingsView";
 import { SetupScreen } from "./SetupScreen";
 import { PlaylistPicker } from "./PlaylistPicker";
+import { GenrePicker } from "./GenrePicker";
 
 type Tab = "home" | "tracks" | "library" | "search";
 
@@ -85,6 +96,11 @@ export default function App() {
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [tagCount, setTagCount] = useState(0);
   const [metaScan, setMetaScan] = useState<(ScanProgress & { running: boolean }) | null>(null);
+  const [genreEditor, setGenreEditor] = useState<{
+    trackIds: string[];
+    title: string;
+    mode: "single" | "bulk";
+  } | null>(null);
 
   const settingsRef = useRef<Settings | null>(null);
   const restoredRef = useRef(false);
@@ -396,6 +412,11 @@ export default function App() {
       ids = library.albums.find((item) => item.key === next.id)?.trackIds ?? [];
     } else if (next.kind === "playlists") {
       ids = userData.playlists.find((item) => item.id === next.id)?.trackIds ?? [];
+    } else if (next.kind === "genres") {
+      const name = next.id ?? "";
+      ids = library.tracks
+        .filter((track) => (genreMap[track.id] ?? []).includes(name))
+        .map((track) => track.id);
     } else if (next.kind === "favorites") {
       ids = next.id === "albums" ? [] : userData.favorites.tracks;
     } else if (next.kind === "history") {
@@ -644,6 +665,40 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshot.trackId]);
 
+  const genreMap = useMemo(
+    () => (library ? buildGenreMap(library, userData) : {}),
+    [library, userData]
+  );
+  const genreList = useMemo(() => buildGenreCounts(genreMap), [genreMap]);
+  const genreNames = useMemo(
+    () => allGenreNames(genreMap, userData),
+    [genreMap, userData.customGenres]
+  );
+
+  function openGenreEditor(
+    trackIds: string[],
+    title: string,
+    mode: "single" | "bulk" = trackIds.length > 1 ? "bulk" : "single"
+  ): void {
+    if (trackIds.length === 0) return;
+    setGenreEditor({ trackIds, title, mode });
+  }
+
+  function applyGenreSelection(selected: string[], action: "add" | "remove"): void {
+    if (!genreEditor || !library) return;
+    if (genreEditor.mode === "single") {
+      const track = library.tracks.find((item) => item.id === genreEditor.trackIds[0]);
+      if (track) {
+        setTrackGenres(track.id, selected, autoGenresForTrack(library, track));
+      }
+    } else if (action === "add") {
+      addGenresToTracks(genreEditor.trackIds, selected);
+    } else {
+      removeGenresFromTracks(genreEditor.trackIds, selected);
+    }
+    setGenreEditor(null);
+  }
+
   const currentTrack = snapshot.trackId ? player.getTrack() : null;
   const effectiveAuth = !online ? "offline" : authState;
 
@@ -685,6 +740,7 @@ export default function App() {
       userData={userData}
       downloads={downloads}
       downloading={downloading}
+      genres={genreMap}
       snapshot={snapshot}
       onBack={() => setDetail(null)}
       onPlayTrack={playTrack}
@@ -699,12 +755,15 @@ export default function App() {
           showToast("プレイリストを削除しました");
         }
       }}
+      onEditGenres={(ids, title) => openGenreEditor(ids, title)}
     />
   ) : tab === "home" ? (
     <HomeView
       library={library}
       userData={userData}
       downloads={downloads}
+      genres={genreMap}
+      genreList={genreList}
       currentTrack={currentTrack}
       savedBytes={savedBytes}
       limitBytes={settings.cacheLimitBytes}
@@ -715,6 +774,7 @@ export default function App() {
         if (kind === "favorites") openDetail({ kind: "favorites", id: "tracks" });
         else openDetail({ kind: "history" });
       }}
+      onOpenGenre={(name) => openDetail({ kind: "genres", id: name })}
       onShowTracks={() => setTab("tracks")}
       onSaveNext={saveNextForCommute}
     />
@@ -725,6 +785,8 @@ export default function App() {
       downloads={downloads}
       downloading={downloading}
       snapshot={snapshot}
+      genres={genreMap}
+      genreList={genreList}
       onPlayTrack={playTrack}
       onToggleFavorite={(track) => toggleFavoriteTrack(track.id)}
       onDownload={(track) => void downloadOne(track)}
@@ -733,6 +795,7 @@ export default function App() {
     <LibraryView
       library={library}
       userData={userData}
+      genreList={genreList}
       metaScan={metaScan}
       tagCount={tagCount}
       estimatedBytes={estimateScanBytes(library.tracks)}
@@ -756,6 +819,7 @@ export default function App() {
       downloads={downloads}
       downloading={downloading}
       snapshot={snapshot}
+      genres={genreMap}
       onPlayTrack={playTrack}
       onToggleFavorite={(track) => toggleFavoriteTrack(track.id)}
       onDownload={(track) => void downloadOne(track)}
@@ -855,6 +919,7 @@ export default function App() {
         <FullPlayer
           track={currentTrack}
           coverUrl={coverUrl}
+          genres={genreMap[currentTrack.id] ?? []}
           favorite={userData.favorites.tracks.includes(currentTrack.id)}
           downloaded={downloads.has(currentTrack.id)}
           downloading={downloading.has(currentTrack.id)}
@@ -869,6 +934,9 @@ export default function App() {
           onDownload={() => void downloadOne(currentTrack)}
           onToggleFavorite={() => toggleFavoriteTrack(currentTrack.id)}
           onAddToPlaylist={() => setPlaylistPicker(true)}
+          onEditGenres={() =>
+            openGenreEditor([currentTrack.id], currentTrack.title, "single")
+          }
         />
       ) : null}
 
@@ -887,6 +955,23 @@ export default function App() {
             setPlaylistPicker(false);
           }}
           onClose={() => setPlaylistPicker(false)}
+        />
+      ) : null}
+
+      {genreEditor && library ? (
+        <GenrePicker
+          title={genreEditor.title}
+          mode={genreEditor.mode}
+          trackCount={genreEditor.trackIds.length}
+          current={
+            genreEditor.mode === "single"
+              ? genreMap[genreEditor.trackIds[0]] ?? []
+              : []
+          }
+          allGenres={genreNames}
+          onAddCustom={addCustomGenre}
+          onApply={applyGenreSelection}
+          onClose={() => setGenreEditor(null)}
         />
       ) : null}
 

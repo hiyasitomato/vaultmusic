@@ -18,12 +18,13 @@ import { formatBytes } from "@/lib/format";
 import { tracksFor } from "@/lib/library";
 import { CoverArt } from "./CoverArt";
 
-type Tab = "folders" | "artists" | "albums" | "playlists" | "favorites" | "history";
+type Tab = "folders" | "artists" | "albums" | "genres" | "playlists" | "favorites" | "history";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "folders", label: "フォルダ" },
   { key: "artists", label: "アーティスト" },
   { key: "albums", label: "アルバム" },
+  { key: "genres", label: "ジャンル" },
   { key: "playlists", label: "プレイリスト" },
   { key: "favorites", label: "お気に入り" },
   { key: "history", label: "履歴" },
@@ -32,6 +33,7 @@ const TABS: { key: Tab; label: string }[] = [
 export function LibraryView({
   library,
   userData,
+  genreList,
   metaScan,
   tagCount,
   estimatedBytes,
@@ -43,6 +45,7 @@ export function LibraryView({
 }: {
   library: Library;
   userData: UserData;
+  genreList: { name: string; count: number; color: string }[];
   metaScan: (ScanProgress & { running: boolean }) | null;
   tagCount: number;
   estimatedBytes: number;
@@ -205,6 +208,33 @@ export function LibraryView({
               2曲以上そろったアルバムはまだありません
             </div>
           )
+        ) : null}
+
+        {tab === "genres" ? (
+          <div className="grid grid-cols-2 gap-2">
+            {genreList.map((genre) => (
+              <button
+                key={genre.name}
+                type="button"
+                onClick={() => onOpen("genres", genre.name)}
+                className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-left active:bg-white/5"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: genre.color }}
+                  />
+                  <span className="truncate text-[12px] font-medium">{genre.name}</span>
+                </span>
+                <span className="shrink-0 text-[10px] text-zinc-500">{genre.count}</span>
+              </button>
+            ))}
+            {genreList.length === 0 ? (
+              <div className="col-span-2 py-12 text-center text-sm text-zinc-500">
+                ジャンルはまだありません
+              </div>
+            ) : null}
+          </div>
         ) : null}
 
         {tab === "playlists" ? (

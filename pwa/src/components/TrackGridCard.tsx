@@ -3,6 +3,7 @@
 import { Check, Download, Heart, Loader2, Play, TriangleAlert } from "lucide-react";
 import type { Track } from "@/lib/types";
 import { formatBytes, formatTime } from "@/lib/format";
+import { genreColor } from "@/lib/genres";
 import { CoverArt } from "./CoverArt";
 
 export function TrackGridCard({
@@ -12,6 +13,7 @@ export function TrackGridCard({
   downloaded = false,
   downloading = false,
   favorite = false,
+  genres = [],
   onPlay,
   onToggleFavorite,
   onDownload,
@@ -22,6 +24,7 @@ export function TrackGridCard({
   downloaded?: boolean;
   downloading?: boolean;
   favorite?: boolean;
+  genres?: string[];
   onPlay: () => void;
   onToggleFavorite: () => void;
   onDownload: () => void;
@@ -74,6 +77,19 @@ export function TrackGridCard({
           <div className="truncate text-[10px] text-zinc-500">
             {track.artist || track.album || "不明なアーティスト"}
           </div>
+          {genres.length > 0 ? (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {genres.slice(0, 2).map((genre) => (
+                <span
+                  key={genre}
+                  className="rounded px-1 py-0.5 text-[9px]"
+                  style={{ backgroundColor: `${genreColor(genre)}22`, color: genreColor(genre) }}
+                >
+                  {genre}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
         <button
           type="button"

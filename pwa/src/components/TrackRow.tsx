@@ -3,6 +3,7 @@
 import { Check, Download, Heart, Loader2, TriangleAlert } from "lucide-react";
 import type { Track } from "@/lib/types";
 import { formatBytes, formatTime } from "@/lib/format";
+import { genreColor } from "@/lib/genres";
 import { CoverArt } from "./CoverArt";
 
 export function TrackRow({
@@ -12,6 +13,7 @@ export function TrackRow({
   downloaded = false,
   downloading = false,
   favorite = false,
+  genres = [],
   onPlay,
   onToggleFavorite,
   onDownload,
@@ -22,6 +24,7 @@ export function TrackRow({
   downloaded?: boolean;
   downloading?: boolean;
   favorite?: boolean;
+  genres?: string[];
   onPlay: () => void;
   onToggleFavorite: () => void;
   onDownload: () => void;
@@ -53,9 +56,19 @@ export function TrackRow({
             </span>
           ) : null}
         </div>
-        <div className="truncate text-[12px] text-zinc-400">
-          {isCurrent && isPlaying ? "再生中 · " : ""}
-          {subtitle}
+        <div className="flex items-center gap-1">
+          <span className="truncate text-[12px] text-zinc-400">
+            {isCurrent && isPlaying ? "再生中 · " : ""}
+            {subtitle}
+          </span>
+          {genres[0] ? (
+            <span
+              className="shrink-0 rounded px-1 py-0.5 text-[9px]"
+              style={{ backgroundColor: `${genreColor(genres[0])}22`, color: genreColor(genres[0]) }}
+            >
+              {genres[0]}
+            </span>
+          ) : null}
         </div>
       </div>
       <div className="shrink-0 text-[11px] tabular-nums text-zinc-500">

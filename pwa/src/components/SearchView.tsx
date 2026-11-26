@@ -12,6 +12,7 @@ export function SearchView({
   downloads,
   downloading,
   snapshot,
+  genres,
   onPlayTrack,
   onToggleFavorite,
   onDownload,
@@ -21,6 +22,7 @@ export function SearchView({
   downloads: Set<string>;
   downloading: Set<string>;
   snapshot: PlayerSnapshot;
+  genres: Record<string, string[]>;
   onPlayTrack: (track: Track, queue: Track[]) => void;
   onToggleFavorite: (track: Track) => void;
   onDownload: (track: Track) => void;
@@ -56,6 +58,7 @@ export function SearchView({
             downloaded={downloads.has(track.id)}
             downloading={downloading.has(track.id)}
             favorite={userData.favorites.tracks.includes(track.id)}
+            genres={genres[track.id] ?? []}
             onPlay={() => onPlayTrack(track, results)}
             onToggleFavorite={() => onToggleFavorite(track)}
             onDownload={() => onDownload(track)}

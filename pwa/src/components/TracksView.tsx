@@ -23,6 +23,8 @@ export function TracksView({
   downloads,
   downloading,
   snapshot,
+  genres,
+  genreList,
   onPlayTrack,
   onToggleFavorite,
   onDownload,
@@ -32,12 +34,15 @@ export function TracksView({
   downloads: Set<string>;
   downloading: Set<string>;
   snapshot: PlayerSnapshot;
+  genres: Record<string, string[]>;
+  genreList: { name: string; count: number; color: string }[];
   onPlayTrack: (track: Track, queue: Track[]) => void;
   onToggleFavorite: (track: Track) => void;
   onDownload: (track: Track) => void;
 }) {
   const [sort, setSort] = useState<SortKey>("title");
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [genreFilter, setGenreFilter] = useState("");
   const [view, setView] = useState<"grid" | "list">(() => {
     if (typeof window === "undefined") return "grid";
     return window.localStorage.getItem("vaultmusic.tracksView") === "list" ? "list" : "grid";
@@ -53,6 +58,7 @@ export function TracksView({
 
   const visible = useMemo(() => {
     const filtered = tracks.filter((track) => {
+      if (genreFilter && !(genres[track.id] ?? []).includes(genreFilter)) return false;
       if (filter === "downloaded") return downloads.has(track.id);
       if (filter === "unsaved") return !downloads.has(track.id);
       return true;
@@ -66,7 +72,7 @@ export function TracksView({
       if (sort === "duration") return b.durationSec - a.durationSec;
       return naturalCompare(a.title, b.title);
     });
-  }, [tracks, sort, filter, downloads]);
+  }, [tracks, sort, filter, genreFilter, genres, downloads]);
 
   return (
     <div>
@@ -131,6 +137,20 @@ export function TracksView({
             {label}
           </button>
         ))}
+        {genreList.length > 0 ? (
+          <select
+            value={genreFilter}
+            onChange={(event) => setGenreFilter(event.target.value)}
+            className="shrink-0 rounded-full border border-white/10 bg-[#17171c] px-2.5 py-1 text-[11px] text-zinc-300"
+          >
+            <option value="">ジャンル: すべて</option>
+            {genreList.map((genre) => (
+              <option key={genre.name} value={genre.name}>
+                {genre.name} ({genre.count})
+              </option>
+            ))}
+          </select>
+        ) : null}
       </div>
 
       {view === "grid" ? (
@@ -144,6 +164,7 @@ export function TracksView({
               downloaded={downloads.has(track.id)}
               downloading={downloading.has(track.id)}
               favorite={userData.favorites.tracks.includes(track.id)}
+              genres={genres[track.id] ?? []}
               onPlay={() => onPlayTrack(track, visible)}
               onToggleFavorite={() => onToggleFavorite(track)}
               onDownload={() => onDownload(track)}
@@ -161,6 +182,7 @@ export function TracksView({
               downloaded={downloads.has(track.id)}
               downloading={downloading.has(track.id)}
               favorite={userData.favorites.tracks.includes(track.id)}
+              genres={genres[track.id] ?? []}
               onPlay={() => onPlayTrack(track, visible)}
               onToggleFavorite={() => onToggleFavorite(track)}
               onDownload={() => onDownload(track)}

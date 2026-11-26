@@ -12,6 +12,8 @@ function emptyUserData(): UserData {
     favorites: { tracks: [], albums: [] },
     history: [],
     playCounts: {},
+    customGenres: [],
+    trackGenres: {},
     queue: null,
     updatedAt: Date.now(),
   };
@@ -29,6 +31,13 @@ function sanitize(parsed: Partial<UserData>): UserData {
     playlists: Array.isArray(parsed.playlists) ? parsed.playlists : [],
     history: Array.isArray(parsed.history) ? parsed.history.slice(0, 500) : [],
     playCounts: parsed.playCounts && typeof parsed.playCounts === "object" ? parsed.playCounts : {},
+    customGenres: Array.isArray(parsed.customGenres)
+      ? parsed.customGenres.filter((name): name is string => typeof name === "string")
+      : [],
+    trackGenres:
+      parsed.trackGenres && typeof parsed.trackGenres === "object"
+        ? parsed.trackGenres
+        : {},
     queue: parsed.queue ?? null,
     version: 1,
   };
@@ -76,6 +85,8 @@ export function updateUserData(mutator: (data: UserData) => void): UserData {
     playlists: getUserData().playlists.map((playlist) => ({ ...playlist })),
     history: [...getUserData().history],
     playCounts: { ...getUserData().playCounts },
+    customGenres: [...getUserData().customGenres],
+    trackGenres: { ...getUserData().trackGenres },
   };
   mutator(next);
   next.updatedAt = Date.now();
@@ -155,6 +166,59 @@ export function recordPlay(trackId: string, completed = false): void {
     data.history.unshift({ trackId, playedAt: Date.now(), completed });
     data.history = data.history.slice(0, 500);
   });
+}
+
+export function setTrackGenres(
+  trackId: string,
+  selected: string[],
+  autoGenres: string[]
+): void {
+  updateUserData((data) => {
+    data.trackGenres = {
+      ...data.trackGenres,
+      [trackId]: {
+        added: selected.filter((genre) => !autoGenres.includes(genre)),
+        removed: autoGenres.filter((genre) => !selected.includes(genre)),
+      },
+    };
+  });
+}
+
+export function addGenresToTracks(trackIds: string[], genres: string[]): void {
+  updateUserData((data) => {
+    const next = { ...data.trackGenres };
+    for (const id of trackIds) {
+      const override = next[id] ?? { added: [], removed: [] };
+      next[id] = {
+        added: Array.from(new Set([...override.added, ...genres])),
+        removed: override.removed.filter((genre) => !genres.includes(genre)),
+      };
+    }
+    data.trackGenres = next;
+  });
+}
+
+export function removeGenresFromTracks(trackIds: string[], genres: string[]): void {
+  updateUserData((data) => {
+    const next = { ...data.trackGenres };
+    for (const id of trackIds) {
+      const override = next[id] ?? { added: [], removed: [] };
+      next[id] = {
+        added: override.added.filter((genre) => !genres.includes(genre)),
+        removed: Array.from(new Set([...override.removed, ...genres])),
+      };
+    }
+    data.trackGenres = next;
+  });
+}
+
+export function addCustomGenre(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return "";
+  updateUserData((data) => {
+    if (!data.customGenres.includes(trimmed)) data.customGenres.push(trimmed);
+  });
+  return trimmed;
 }
 
 export function saveQueueState(queue: QueueState): void {

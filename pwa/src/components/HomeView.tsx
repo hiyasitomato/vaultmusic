@@ -37,9 +37,11 @@ function Section({
 
 function TrackCard({
   track,
+  genres,
   onPlay,
 }: {
   track: Track;
+  genres: string[];
   onPlay: () => void;
 }) {
   return (
@@ -65,6 +67,9 @@ function TrackCard({
       <div className="truncate text-[11px] text-zinc-400">
         {track.artist || "不明なアーティスト"}
       </div>
+      {genres[0] ? (
+        <div className="mt-0.5 truncate text-[9px] text-zinc-500">{genres[0]}</div>
+      ) : null}
     </button>
   );
 }
@@ -73,6 +78,8 @@ export function HomeView({
   library,
   userData,
   downloads,
+  genres,
+  genreList,
   currentTrack,
   savedBytes,
   limitBytes,
@@ -80,12 +87,15 @@ export function HomeView({
   onPlayShuffle,
   onResume,
   onOpenDetail,
+  onOpenGenre,
   onShowTracks,
   onSaveNext,
 }: {
   library: Library;
   userData: UserData;
   downloads: Set<string>;
+  genres: Record<string, string[]>;
+  genreList: { name: string; count: number; color: string }[];
   currentTrack: Track | null;
   savedBytes: number;
   limitBytes: number;
@@ -93,6 +103,7 @@ export function HomeView({
   onPlayShuffle: () => void;
   onResume: () => void;
   onOpenDetail: (kind: "favorites" | "history") => void;
+  onOpenGenre: (name: string) => void;
   onShowTracks: () => void;
   onSaveNext: () => void;
 }) {
@@ -210,7 +221,7 @@ export function HomeView({
       >
         <div className="no-scrollbar -mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
           {recent.map((track) => (
-            <TrackCard key={track.id} track={track} onPlay={() => onPlayTrack(track, recent)} />
+            <TrackCard key={track.id} track={track} genres={genres[track.id] ?? []} onPlay={() => onPlayTrack(track, recent)} />
           ))}
         </div>
       </Section>
@@ -219,7 +230,30 @@ export function HomeView({
         <Section title="よく聴く">
           <div className="no-scrollbar -mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
             {topPlayed.map((track) => (
-              <TrackCard key={track.id} track={track} onPlay={() => onPlayTrack(track, topPlayed)} />
+              <TrackCard key={track.id} track={track} genres={genres[track.id] ?? []} onPlay={() => onPlayTrack(track, topPlayed)} />
+            ))}
+          </div>
+        </Section>
+      ) : null}
+
+      {genreList.length > 0 ? (
+        <Section title="ジャンル">
+          <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+            {genreList.slice(0, 10).map((genre) => (
+              <button
+                key={genre.name}
+                type="button"
+                onClick={() => onOpenGenre(genre.name)}
+                className="flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 px-3 py-1.5 text-[11px]"
+                style={{ color: genre.color }}
+              >
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{ backgroundColor: genre.color }}
+                />
+                {genre.name}
+                <span className="text-zinc-500">{genre.count}</span>
+              </button>
             ))}
           </div>
         </Section>
@@ -256,7 +290,7 @@ export function HomeView({
         <Section title="お気に入りの曲">
           <div className="no-scrollbar -mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
             {favoriteTracks.map((track) => (
-              <TrackCard key={track.id} track={track} onPlay={() => onPlayTrack(track, favoriteTracks)} />
+              <TrackCard key={track.id} track={track} genres={genres[track.id] ?? []} onPlay={() => onPlayTrack(track, favoriteTracks)} />
             ))}
           </div>
         </Section>

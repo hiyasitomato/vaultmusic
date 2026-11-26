@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Download, Play, Shuffle, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, Play, Shuffle, Tags, Trash2 } from "lucide-react";
 import type { Library, PlayerSnapshot, Track, UserData } from "@/lib/types";
 import { compareCollectionOrder, tracksFor } from "@/lib/library";
 import { TrackRow } from "./TrackRow";
@@ -12,7 +12,8 @@ export type DetailKind =
   | "albums"
   | "playlists"
   | "favorites"
-  | "history";
+  | "history"
+  | "genres";
 
 export interface DetailState {
   kind: DetailKind;
@@ -25,6 +26,7 @@ export function DetailView({
   userData,
   downloads,
   downloading,
+  genres,
   snapshot,
   onBack,
   onPlayTrack,
@@ -34,12 +36,14 @@ export function DetailView({
   onDownloadAll,
   onOpenAlbum,
   onDeletePlaylist,
+  onEditGenres,
 }: {
   detail: DetailState;
   library: Library;
   userData: UserData;
   downloads: Set<string>;
   downloading: Set<string>;
+  genres: Record<string, string[]>;
   snapshot: PlayerSnapshot;
   onBack: () => void;
   onPlayTrack: (track: Track, queue: Track[]) => void;
@@ -49,6 +53,7 @@ export function DetailView({
   onDownloadAll: (tracks: Track[]) => void;
   onOpenAlbum: (key: string) => void;
   onDeletePlaylist: (id: string) => void;
+  onEditGenres: (trackIds: string[], title: string) => void;
 }) {
   let title = "";
   let subtitle = "";
@@ -76,6 +81,11 @@ export function DetailView({
     tracks = tracksFor(library, playlist?.trackIds ?? []);
     subtitle = `${tracks.length} 曲`;
     playlistId = playlist?.id;
+  } else if (detail.kind === "genres") {
+    const name = detail.id ?? "ジャンル";
+    title = name;
+    tracks = library.tracks.filter((track) => (genres[track.id] ?? []).includes(name));
+    subtitle = `${tracks.length} 曲`;
   } else if (detail.kind === "favorites") {
     if (detail.id === "albums") {
       const albums = userData.favorites.albums
@@ -132,19 +142,31 @@ export function DetailView({
         subtitle={subtitle}
         onBack={onBack}
         action={
-          playlistId ? (
-            <button
-              type="button"
-              aria-label="プレイリストを削除"
-              onClick={() => {
-                onDeletePlaylist(playlistId!);
-                onBack();
-              }}
-              className="rounded-full p-2 text-zinc-500 hover:text-rose-400"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          ) : null
+          <div className="flex items-center">
+            {tracks.length > 0 ? (
+              <button
+                type="button"
+                aria-label="ジャンルを編集"
+                onClick={() => onEditGenres(tracks.map((track) => track.id), title)}
+                className="rounded-full p-2 text-zinc-500 hover:text-zinc-200"
+              >
+                <Tags className="h-4 w-4" />
+              </button>
+            ) : null}
+            {playlistId ? (
+              <button
+                type="button"
+                aria-label="プレイリストを削除"
+                onClick={() => {
+                  onDeletePlaylist(playlistId!);
+                  onBack();
+                }}
+                className="rounded-full p-2 text-zinc-500 hover:text-rose-400"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            ) : null}
+          </div>
         }
       />
 
@@ -187,6 +209,7 @@ export function DetailView({
             downloaded={downloads.has(track.id)}
             downloading={downloading.has(track.id)}
             favorite={userData.favorites.tracks.includes(track.id)}
+            genres={genres[track.id] ?? []}
             onPlay={() => onPlayTrack(track, tracks)}
             onToggleFavorite={() => onToggleFavorite(track)}
             onDownload={() => onDownload(track)}

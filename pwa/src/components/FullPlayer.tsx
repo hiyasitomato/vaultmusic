@@ -14,10 +14,12 @@ import {
   Shuffle,
   SkipBack,
   SkipForward,
+  Tags,
   Timer,
 } from "lucide-react";
 import type { RepeatMode, Track } from "@/lib/types";
 import { formatTime } from "@/lib/format";
+import { genreColor } from "@/lib/genres";
 import { usePlayerLive } from "@/lib/usePlayer";
 import { CoverArt } from "./CoverArt";
 
@@ -26,6 +28,7 @@ const SLEEP_OPTIONS = [0, 15, 30, 45, 60];
 export function FullPlayer({
   track,
   coverUrl,
+  genres,
   favorite,
   downloaded,
   downloading,
@@ -40,9 +43,11 @@ export function FullPlayer({
   onDownload,
   onToggleFavorite,
   onAddToPlaylist,
+  onEditGenres,
 }: {
   track: Track;
   coverUrl: string | null;
+  genres: string[];
   favorite: boolean;
   downloaded: boolean;
   downloading: boolean;
@@ -57,6 +62,7 @@ export function FullPlayer({
   onDownload: () => void;
   onToggleFavorite: () => void;
   onAddToPlaylist: () => void;
+  onEditGenres: () => void;
 }) {
   const snapshot = usePlayerLive();
   const [sleepOpen, setSleepOpen] = useState(false);
@@ -106,6 +112,22 @@ export function FullPlayer({
                 <div className="truncate text-[11px] text-zinc-600">
                   {[track.album, track.year].filter(Boolean).join(" · ")}
                 </div>
+                {genres.length > 0 ? (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {genres.slice(0, 3).map((genre) => (
+                      <span
+                        key={genre}
+                        className="rounded px-1.5 py-0.5 text-[9px]"
+                        style={{
+                          backgroundColor: `${genreColor(genre)}22`,
+                          color: genreColor(genre),
+                        }}
+                      >
+                        {genre}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
               </div>
               <button
                 type="button"
@@ -189,7 +211,7 @@ export function FullPlayer({
               </button>
             </div>
 
-            <div className="mt-5 flex items-center justify-center gap-3">
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
               <button
                 type="button"
                 onClick={onDownload}
@@ -218,6 +240,14 @@ export function FullPlayer({
               >
                 <Timer className="h-3.5 w-3.5" />
                 スリープ
+              </button>
+              <button
+                type="button"
+                onClick={onEditGenres}
+                className="flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-1.5 text-[11px] text-zinc-300"
+              >
+                <Tags className="h-3.5 w-3.5" />
+                ジャンル
               </button>
             </div>
 

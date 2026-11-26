@@ -117,8 +117,15 @@ export interface UserData {
   favorites: Favorites;
   history: HistoryEntry[];
   playCounts: Record<string, number>;
+  customGenres: string[];
+  trackGenres: Record<string, GenreOverride>;
   queue: QueueState | null;
   updatedAt: number;
+}
+
+export interface GenreOverride {
+  added: string[];
+  removed: string[];
 }
 
 export interface Settings {
