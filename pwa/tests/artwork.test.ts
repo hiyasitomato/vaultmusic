@@ -64,4 +64,48 @@ describe("artwork matching", () => {
     expect(cleanTrackTitle("再会 [4flRaFrBqFU] (TV size)")).toBe("再会");
     expect(normalizeForMatch("Ｒｅ：再会！")).toBe("re再会");
   });
+
+  it("matches filenames where artist and title are concatenated", () => {
+    const enemy = scoreArtworkCandidate(
+      track({ title: "Enemy Imagine Dragons", artist: "他", albumArtist: "他" }),
+      {
+        url: "https://example.com/enemy.jpg",
+        source: "itunes",
+        title: "Enemy",
+        artist: "Imagine Dragons",
+        duration: 0,
+      }
+    );
+    expect(enemy).toBeGreaterThanOrEqual(0.6);
+
+    const centuries = scoreArtworkCandidate(
+      track({ title: "Fall Out Boy Centuries", artist: "他", albumArtist: "他" }),
+      {
+        url: "https://example.com/centuries.jpg",
+        source: "itunes",
+        title: "Centuries",
+        artist: "Fall Out Boy",
+        duration: 0,
+      }
+    );
+    expect(centuries).toBeGreaterThanOrEqual(0.6);
+  });
+
+  it("ignores downloader names in the artist field", () => {
+    const score = scoreArtworkCandidate(
+      track({
+        title: "Fighter",
+        artist: "SpotDownloader.com - 機動戦士ガンダム",
+        albumArtist: "SpotDownloader.com",
+      }),
+      {
+        url: "https://example.com/fighter.jpg",
+        source: "itunes",
+        title: "Fighter",
+        artist: "Christina Aguilera",
+        duration: 0,
+      }
+    );
+    expect(score).toBeGreaterThanOrEqual(0.6);
+  });
 });

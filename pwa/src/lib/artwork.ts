@@ -18,6 +18,7 @@ export interface ArtworkProgress {
 
 export interface ArtworkOptions {
   onProgress: (progress: ArtworkProgress) => void;
+  onFound?: (trackId: string, url: string) => void;
   shouldStop?: () => boolean;
   force?: boolean;
   concurrency?: number;
@@ -44,31 +45,59 @@ export function cleanTrackTitle(title: string): string {
     .trim();
 }
 
+const SUSPICIOUS_ARTIST =
+  /^(他|不明|unknown|various|various artists|none|n\/a|artist|音楽|music)$/i;
+
+function effectiveArtist(track: Track): string {
+  const artist = (track.artist || track.albumArtist || "").trim();
+  if (!artist) return "";
+  if (artist === "不明なアーティスト") return "";
+  if (SUSPICIOUS_ARTIST.test(artist)) return "";
+  if (/downloader|spotmate|spotify|https?:|\.com\//i.test(artist)) return "";
+  return artist;
+}
+
 export function scoreArtworkCandidate(track: Track, candidate: ArtworkCandidate): number {
   const title = normalizeForMatch(cleanTrackTitle(track.title));
   const candidateTitle = normalizeForMatch(candidate.title);
   if (!title || !candidateTitle) return 0;
 
   let score = 0;
-  if (candidateTitle === title) score += 0.7;
-  else if (candidateTitle.includes(title) || title.includes(candidateTitle)) score += 0.5;
-  else return 0;
+  if (candidateTitle === title) {
+    score += 0.7;
+  } else if (candidateTitle.includes(title) || title.includes(candidateTitle)) {
+    score += 0.5;
+    if (
+      candidateTitle.length >= 4 &&
+      (title.startsWith(candidateTitle) || title.endsWith(candidateTitle))
+    ) {
+      // 「Enemy Imagine Dragons」に対する「Enemy」のような、
+      // ファイル名にアーティスト名と曲名が連結されているケース
+      score += 0.15;
+    }
+  } else {
+    return 0;
+  }
 
-  const artist =
-    track.artist && track.artist !== "不明なアーティスト"
-      ? normalizeForMatch(track.artist)
-      : "";
+  const artist = effectiveArtist(track);
   if (artist) {
+    const artistNorm = normalizeForMatch(artist);
     const candidateArtist = normalizeForMatch(candidate.artist);
     if (
       candidateArtist &&
-      (candidateArtist === artist ||
-        candidateArtist.includes(artist) ||
-        artist.includes(candidateArtist))
+      (candidateArtist === artistNorm ||
+        candidateArtist.includes(artistNorm) ||
+        artistNorm.includes(candidateArtist))
     ) {
       score += 0.2;
     } else {
       score -= 0.35;
+    }
+  } else {
+    const candidateArtist = normalizeForMatch(candidate.artist);
+    if (candidateArtist && title.includes(candidateArtist)) {
+      // アーティスト不明でも、曲名側にアーティスト名が入っていれば強い一致
+      score += 0.1;
     }
   }
 
@@ -195,10 +224,15 @@ async function searchItunes(query: string, track: Track): Promise<ArtworkCandida
 async function searchTrack(track: Track): Promise<ArtworkCandidate | null> {
   const title = cleanTrackTitle(track.title);
   if (!title) return null;
-  const artist =
-    track.artist && track.artist !== "不明なアーティスト" ? track.artist : "";
-  const queries = [`${title} ${artist}`.trim()];
-  if (track.album && track.album !== title) queries.push(`${title} ${track.album}`.trim());
+  const artist = effectiveArtist(track);
+  const queries: string[] = [];
+  const addQuery = (value: string) => {
+    const trimmed = value.trim();
+    if (trimmed && !queries.includes(trimmed)) queries.push(trimmed);
+  };
+  if (artist) addQuery(`${title} ${artist}`);
+  addQuery(title);
+  if (track.album && track.album !== title) addQuery(`${title} ${track.album}`);
 
   for (const query of queries) {
     try {
@@ -256,15 +290,34 @@ export function applyArtwork(
   return changed ? { ...library, tracks } : library;
 }
 
+export function applyArtworkItem(
+  library: Library,
+  trackId: string,
+  url: string
+): Library {
+  if (!url) return library;
+  let changed = false;
+  const tracks = library.tracks.map((track) => {
+    if (track.id !== trackId || track.coverThumb || track.artworkUrl === url) return track;
+    changed = true;
+    return { ...track, artworkUrl: url };
+  });
+  return changed ? { ...library, tracks } : library;
+}
+
 export async function findArtworkForTracks(
   tracks: Track[],
   options: ArtworkOptions
 ): Promise<ArtworkProgress> {
   const existing = await getAllArtwork().catch(() => ({} as Record<string, StoredArtwork>));
+  const DAY = 24 * 60 * 60 * 1000;
   const pending = tracks.filter((track) => {
     if (track.coverThumb) return false;
-    if (!options.force && existing[track.id]?.at) return false;
-    return true;
+    if (options.force) return true;
+    const record = existing[track.id];
+    if (!record) return true;
+    const ttl = record.url ? 30 * DAY : 7 * DAY;
+    return Date.now() - record.at >= ttl;
   });
 
   const total = pending.length;
@@ -289,6 +342,7 @@ export async function findArtworkForTracks(
               source: "youtube",
               at: Date.now(),
             });
+            options.onFound?.(track.id, url);
             found += 1;
             done += 1;
             options.onProgress({ done, total, found, failed });
@@ -296,13 +350,14 @@ export async function findArtworkForTracks(
           }
         }
         const candidate = await searchTrack(track);
+        await putArtwork({
+          trackId: track.id,
+          url: candidate?.url ?? "",
+          source: candidate?.source ?? "none",
+          at: Date.now(),
+        });
         if (candidate) {
-          await putArtwork({
-            trackId: track.id,
-            url: candidate.url,
-            source: candidate.source,
-            at: Date.now(),
-          });
+          options.onFound?.(track.id, candidate.url);
           found += 1;
         }
       } catch {

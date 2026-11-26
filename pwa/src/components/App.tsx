@@ -40,7 +40,12 @@ import {
   buildGenreCounts,
   buildGenreMap,
 } from "@/lib/genres";
-import { applyArtwork, findArtworkForTracks, type ArtworkProgress } from "@/lib/artwork";
+import {
+  applyArtwork,
+  applyArtworkItem,
+  findArtworkForTracks,
+  type ArtworkProgress,
+} from "@/lib/artwork";
 import { player } from "@/lib/player";
 import { usePlayerUI } from "@/lib/usePlayer";
 import {
@@ -118,6 +123,7 @@ export default function App() {
   const scanRunningRef = useRef(false);
   const stopArtworkRef = useRef(false);
   const artworkRunningRef = useRef(false);
+  const artworkAutoStarted = useRef(false);
 
   function showToast(message: string): void {
     setToast(message);
@@ -331,11 +337,17 @@ export default function App() {
         force,
         shouldStop: () => stopArtworkRef.current,
         onProgress: (progress) => setArtworkScan({ ...progress, running: true }),
+        onFound: (trackId, url) => {
+          setLibrary((prev) => (prev ? applyArtworkItem(prev, trackId, url) : prev));
+        },
       });
       const artwork = await getAllArtwork().catch(() => ({} as Record<string, never>));
-      const enriched = applyArtwork(library, artwork);
-      setLibrary(enriched);
-      await cacheCatalog(enriched).catch(() => undefined);
+      setLibrary((prev) => {
+        if (!prev) return prev;
+        const next = applyArtwork(prev, artwork);
+        void cacheCatalog(next).catch(() => undefined);
+        return next;
+      });
       showToast(
         stopArtworkRef.current
           ? "検索を中止しました"
@@ -746,6 +758,14 @@ export default function App() {
     setGenreEditor(null);
   }
 
+  useEffect(() => {
+    if (!library || artworkAutoStarted.current) return;
+    if (!library.tracks.some((track) => !track.coverThumb && !track.artworkUrl)) return;
+    artworkAutoStarted.current = true;
+    void lookupArtwork(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [library]);
+
   const currentTrack = snapshot.trackId ? player.getTrack() : null;
   const effectiveAuth = !online ? "offline" : authState;
 
@@ -1056,6 +1076,25 @@ export default function App() {
           busy={busy}
           authState={effectiveAuth}
         />
+      ) : null}
+
+      {artworkScan?.running ? (
+        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(7.8rem+var(--vm-safe-bottom))] z-40 flex justify-center px-4">
+          <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-sky-400/30 bg-black/85 px-3 py-1.5 text-[11px] text-sky-200 shadow-xl backdrop-blur">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-sky-400" />
+            サムネイル検索 {artworkScan.done}/{artworkScan.total}
+            {artworkScan.found > 0 ? ` ・ ${artworkScan.found}件` : ""}
+            <button
+              type="button"
+              onClick={() => {
+                stopArtworkRef.current = true;
+              }}
+              className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-zinc-300"
+            >
+              中止
+            </button>
+          </div>
+        </div>
       ) : null}
 
       {toast ? (
