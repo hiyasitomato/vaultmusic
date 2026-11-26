@@ -1,0 +1,142 @@
+const GIS_SRC = "https://accounts.google.com/gsi/client";
+export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.readonly";
+
+interface TokenResponse {
+  access_token?: string;
+  expires_in?: number;
+  error?: string;
+  error_description?: string;
+}
+
+interface TokenClient {
+  requestAccessToken: (overrideConfig?: { prompt?: string }) => void;
+}
+
+declare global {
+  interface Window {
+    google?: {
+      accounts?: {
+        oauth2?: {
+          initTokenClient: (config: {
+            client_id: string;
+            scope: string;
+            callback: (response: TokenResponse) => void;
+            error_callback?: (error: { type?: string; message?: string }) => void;
+          }) => TokenClient;
+          revoke: (token: string, done?: () => void) => void;
+        };
+      };
+    };
+  }
+}
+
+export class AuthError extends Error {
+  code: "AUTH_REQUIRED" | "AUTH_FAILED";
+  constructor(code: "AUTH_REQUIRED" | "AUTH_FAILED", message: string) {
+    super(message);
+    this.code = code;
+  }
+}
+
+let gisPromise: Promise<void> | null = null;
+let cached: { token: string; expiresAt: number; clientId: string } | null = null;
+
+function loadGis(): Promise<void> {
+  if (typeof window === "undefined") {
+    return Promise.reject(new AuthError("AUTH_FAILED", "ブラウザで開いてください"));
+  }
+  if (window.google?.accounts?.oauth2) return Promise.resolve();
+  if (gisPromise) return gisPromise;
+  gisPromise = new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = GIS_SRC;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => {
+      gisPromise = null;
+      reject(new AuthError("AUTH_FAILED", "Google の認証スクリプトを読み込めませんでした"));
+    };
+    document.head.appendChild(script);
+  });
+  return gisPromise;
+}
+
+export async function requestToken(
+  clientId: string,
+  silent = false
+): Promise<{ token: string; expiresAt: number }> {
+  if (!clientId.trim()) {
+    throw new AuthError("AUTH_REQUIRED", "クライアント ID が未設定です");
+  }
+  await loadGis();
+  const oauth2 = window.google?.accounts?.oauth2;
+  if (!oauth2) throw new AuthError("AUTH_FAILED", "Google 認証を初期化できませんでした");
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (error: AuthError) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
+
+    const client = oauth2.initTokenClient({
+      client_id: clientId,
+      scope: DRIVE_SCOPE,
+      callback: (response) => {
+        if (settled) return;
+        if (response.access_token) {
+          const expiresAt = Date.now() + Math.max(60, Number(response.expires_in ?? 3600) - 30) * 1000;
+          cached = { token: response.access_token, expiresAt, clientId };
+          settled = true;
+          resolve({ token: response.access_token, expiresAt });
+          return;
+        }
+        finish(new AuthError("AUTH_FAILED", response.error_description || "ログインに失敗しました"));
+      },
+      error_callback: (error) => {
+        const message =
+          error?.type === "popup_closed"
+            ? "ログイン画面が閉じられました"
+            : error?.message || "ログインに失敗しました";
+        finish(new AuthError(silent ? "AUTH_REQUIRED" : "AUTH_FAILED", message));
+      },
+    });
+
+    try {
+      client.requestAccessToken({ prompt: silent ? "none" : "" });
+    } catch (error) {
+      finish(
+        new AuthError(
+          "AUTH_FAILED",
+          error instanceof Error ? error.message : "ログインを開始できませんでした"
+        )
+      );
+    }
+  });
+}
+
+export async function getValidToken(clientId: string): Promise<string> {
+  if (cached && cached.clientId === clientId && cached.expiresAt - Date.now() > 5 * 60 * 1000) {
+    return cached.token;
+  }
+  const refreshed = await requestToken(clientId, true);
+  return refreshed.token;
+}
+
+export function peekToken(): string | null {
+  if (cached && cached.expiresAt > Date.now() + 60 * 1000) return cached.token;
+  return null;
+}
+
+export function forgetToken(): void {
+  cached = null;
+}
+
+export function revokeToken(): void {
+  if (cached && window.google?.accounts?.oauth2) {
+    window.google.accounts.oauth2.revoke(cached.token, () => undefined);
+  }
+  cached = null;
+}
