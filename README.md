@@ -39,7 +39,7 @@ VaultStream と同じ OAuth クライアントを再利用できる。
    - `http://localhost:3000`
    - 本番 URL（例：`https://vaultmusic.pages.dev`）
 3. クライアント ID を `NEXT_PUBLIC_GOOGLE_CLIENT_ID` か、アプリの設定画面に入力
-4. アプリのスコープは `drive.readonly`（読み取りのみ）
+4. アプリのスコープは `drive`（コードは読み取りのみ。既存クライアントとの互換のため）
 
 音楽フォルダは、設定画面で URL を貼るか「マイドライブの『音楽』を探す」から選ぶ。
 
@@ -54,6 +54,20 @@ iPhone の Safari ストレージは実質 1GB 前後のことが多い。全曲
 通学で聴く分を選んで保存する。既定の上限は 1.5GB（設定で変更可）。
 
 ## デプロイ
+
+### GitHub Pages（このプロジェクトの公開先）
+
+```bash
+cd pwa
+NEXT_PUBLIC_BASE_PATH=/vaultmusic npm run build
+# out/ を gh-pages ブランチへ
+```
+
+公開URL: `https://hiyasitomato.github.io/vaultmusic/`
+Google Cloud の OAuth クライアントの「承認済みの JavaScript 生成元」に
+`https://hiyasitomato.github.io` を追加しておく必要がある（パスは含めない）。
+
+### Cloudflare Pages
 
 ```bash
 cd pwa

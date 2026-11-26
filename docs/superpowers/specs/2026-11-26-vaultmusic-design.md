@@ -47,7 +47,7 @@ Google Drive にすでに置いてある自分の音楽ライブラリを、iPho
 
 - 構成：Next.js（静的 export）＋ Tailwind ＋ Google Drive API v3 ＋ Cloudflare Pages 無料枠。バックエンドなし。
 - 認証：ブラウザ内 OAuth（GIS Token Client）。既存 VaultStream の Web クライアント ID を再利用し、VaultMusic のオリジンを「承認済み JavaScript 生成元」に追加する。
-- スコープ：MVP は `https://www.googleapis.com/auth/drive.readonly`（読み取りのみ）。プレイリストのクラウド同期を入れる段階で `drive.appdata` を追加する。
+- スコープ：既存 VaultStream のクライアントと互換のためフル `drive`。コードは読み取り API しか呼ばない。
 - 音源フォルダ：ユーザーが Drive のフォルダ URL またはフォルダ ID を貼って指定する。アプリはそのフォルダ配下だけを読む。
 - 音源形式：mp3 / m4a（AAC）。opus は iOS Safari で再生が不安定なため、一覧に表示しつつ「この端末では再生できない可能性」を明示する（MVP では再生対象から除外してもよい）。
 - 暗号化しない。音源・ファイル名は Drive 上に今までどおり見える。これは方式 C の受け入れたトレードオフ。

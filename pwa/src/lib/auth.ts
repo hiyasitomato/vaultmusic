@@ -1,5 +1,5 @@
 const GIS_SRC = "https://accounts.google.com/gsi/client";
-export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.readonly";
+export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
 
 interface TokenResponse {
   access_token?: string;
