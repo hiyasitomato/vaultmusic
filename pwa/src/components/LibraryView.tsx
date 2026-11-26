@@ -4,7 +4,6 @@ import { useState } from "react";
 import {
   ChevronRight,
   Disc3,
-  FolderOpen,
   Heart,
   History,
   ListMusic,
@@ -130,21 +129,28 @@ export function LibraryView({
       <div className="mt-3">
         {tab === "folders" ? (
           <div className="divide-y divide-white/[0.04]">
-            {library.folders.map((folder) => (
-              <button
-                key={folder.folderId}
-                type="button"
-                onClick={() => onOpen("folders", folder.folderId)}
-                className="flex w-full items-center gap-3 px-3 py-3 text-left active:bg-white/5"
-              >
-                <FolderOpen className="h-5 w-5 text-amber-400" />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">{folder.name}</div>
-                  <div className="text-[11px] text-zinc-500">{folder.trackIds.length} 曲</div>
-                </div>
-                <ChevronRight className="h-4 w-4 text-zinc-600" />
-              </button>
-            ))}
+            {library.folders.map((folder) => {
+              const first = tracksFor(library, folder.trackIds)[0];
+              return (
+                <button
+                  key={folder.folderId}
+                  type="button"
+                  onClick={() => onOpen("folders", folder.folderId)}
+                  className="flex w-full items-center gap-3 px-3 py-3 text-left active:bg-white/5"
+                >
+                  <CoverArt
+                    title={folder.name}
+                    url={first?.coverThumb ?? first?.thumbnailLink}
+                    size="md"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium">{folder.name}</div>
+                    <div className="text-[11px] text-zinc-500">{folder.trackIds.length} 曲</div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-zinc-600" />
+                </button>
+              );
+            })}
           </div>
         ) : null}
 
@@ -178,9 +184,14 @@ export function LibraryView({
                     key={album.key}
                     type="button"
                     onClick={() => onOpen("albums", album.key)}
-                    className="text-left active:opacity-70"
+                    className="group text-left active:opacity-70"
                   >
-                    <CoverArt title={album.title} url={first?.coverThumb ?? first?.thumbnailLink} size="fill" />
+                    <CoverArt
+                      title={album.title}
+                      url={first?.coverThumb ?? first?.thumbnailLink}
+                      size="fill"
+                      className="transition-transform duration-300 group-hover:scale-[1.03]"
+                    />
                     <div className="mt-1.5 truncate text-[13px] font-medium">{album.title}</div>
                     <div className="truncate text-[11px] text-zinc-500">
                       {album.artist} · {album.trackIds.length}曲

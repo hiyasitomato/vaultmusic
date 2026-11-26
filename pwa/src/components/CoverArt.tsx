@@ -9,6 +9,7 @@ const SIZES = {
   lg: "h-24 w-24 text-2xl rounded-2xl",
   xl: "h-64 w-64 text-5xl rounded-3xl",
   card: "h-28 w-28 text-base rounded-2xl",
+  shelf: "h-36 w-36 text-lg rounded-2xl",
   fill: "h-auto w-full aspect-square text-2xl rounded-2xl",
   hero: "h-auto w-full aspect-square text-5xl rounded-3xl",
 };

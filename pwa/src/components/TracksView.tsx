@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { LayoutGrid, List } from "lucide-react";
 import type { PlayerSnapshot, Track, UserData } from "@/lib/types";
 import { naturalCompare } from "@/lib/format";
 import { TrackRow } from "./TrackRow";
+import { TrackGridCard } from "./TrackGridCard";
 
 type SortKey = "title" | "added" | "artist" | "duration";
 type FilterKey = "all" | "downloaded" | "unsaved";
@@ -36,6 +38,18 @@ export function TracksView({
 }) {
   const [sort, setSort] = useState<SortKey>("title");
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [view, setView] = useState<"grid" | "list">(() => {
+    if (typeof window === "undefined") return "grid";
+    return window.localStorage.getItem("vaultmusic.tracksView") === "list" ? "list" : "grid";
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("vaultmusic.tracksView", view);
+    } catch {
+      // 無視
+    }
+  }, [view]);
 
   const visible = useMemo(() => {
     const filtered = tracks.filter((track) => {
@@ -58,7 +72,27 @@ export function TracksView({
     <div>
       <div className="mt-3 flex items-center justify-between px-1">
         <h1 className="text-lg font-bold">曲</h1>
-        <span className="text-[11px] text-zinc-500">{tracks.length} 曲</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-zinc-500">{tracks.length} 曲</span>
+          <div className="flex rounded-lg border border-white/10 p-0.5">
+            <button
+              type="button"
+              aria-label="グリッド表示"
+              onClick={() => setView("grid")}
+              className={`rounded p-1 ${view === "grid" ? "bg-white text-black" : "text-zinc-500"}`}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              aria-label="リスト表示"
+              onClick={() => setView("list")}
+              className={`rounded p-1 ${view === "list" ? "bg-white text-black" : "text-zinc-500"}`}
+            >
+              <List className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="no-scrollbar -mx-1 mt-2 flex gap-1.5 overflow-x-auto px-1">
@@ -99,25 +133,44 @@ export function TracksView({
         ))}
       </div>
 
-      <div className="mt-2 divide-y divide-white/[0.04]">
-        {visible.map((track) => (
-          <TrackRow
-            key={track.id}
-            track={track}
-            isCurrent={snapshot.trackId === track.id}
-            isPlaying={snapshot.isPlaying}
-            downloaded={downloads.has(track.id)}
-            downloading={downloading.has(track.id)}
-            favorite={userData.favorites.tracks.includes(track.id)}
-            onPlay={() => onPlayTrack(track, visible)}
-            onToggleFavorite={() => onToggleFavorite(track)}
-            onDownload={() => onDownload(track)}
-          />
-        ))}
-        {visible.length === 0 ? (
-          <div className="py-16 text-center text-sm text-zinc-500">曲がありません</div>
-        ) : null}
-      </div>
+      {view === "grid" ? (
+        <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3">
+          {visible.map((track) => (
+            <TrackGridCard
+              key={track.id}
+              track={track}
+              isCurrent={snapshot.trackId === track.id}
+              isPlaying={snapshot.isPlaying}
+              downloaded={downloads.has(track.id)}
+              downloading={downloading.has(track.id)}
+              favorite={userData.favorites.tracks.includes(track.id)}
+              onPlay={() => onPlayTrack(track, visible)}
+              onToggleFavorite={() => onToggleFavorite(track)}
+              onDownload={() => onDownload(track)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="mt-2 divide-y divide-white/[0.04]">
+          {visible.map((track) => (
+            <TrackRow
+              key={track.id}
+              track={track}
+              isCurrent={snapshot.trackId === track.id}
+              isPlaying={snapshot.isPlaying}
+              downloaded={downloads.has(track.id)}
+              downloading={downloading.has(track.id)}
+              favorite={userData.favorites.tracks.includes(track.id)}
+              onPlay={() => onPlayTrack(track, visible)}
+              onToggleFavorite={() => onToggleFavorite(track)}
+              onDownload={() => onDownload(track)}
+            />
+          ))}
+        </div>
+      )}
+      {visible.length === 0 ? (
+        <div className="py-16 text-center text-sm text-zinc-500">曲がありません</div>
+      ) : null}
     </div>
   );
 }

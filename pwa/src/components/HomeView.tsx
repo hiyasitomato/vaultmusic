@@ -46,9 +46,21 @@ function TrackCard({
     <button
       type="button"
       onClick={onPlay}
-      className="w-28 shrink-0 text-left active:opacity-70"
+      className="group w-36 shrink-0 text-left active:opacity-70"
     >
-      <CoverArt title={track.title} url={track.coverThumb ?? track.thumbnailLink} size="card" />
+      <div className="relative">
+        <CoverArt
+          title={track.title}
+          url={track.coverThumb ?? track.thumbnailLink}
+          size="shelf"
+          className="transition-transform duration-300 group-hover:scale-[1.03]"
+        />
+        <span className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-black shadow-lg">
+            <Play className="ml-0.5 h-4 w-4 fill-current" />
+          </span>
+        </span>
+      </div>
       <div className="mt-1.5 truncate text-[12px] font-medium text-zinc-100">{track.title}</div>
       <div className="truncate text-[11px] text-zinc-400">
         {track.artist || "不明なアーティスト"}
