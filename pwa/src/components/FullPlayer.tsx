@@ -140,7 +140,9 @@ export function FullPlayer({
               </div>
             ) : (
               <div className="mt-2 h-[18px] text-center text-[10px] text-zinc-600">
-                {snapshot.loading ? "読み込み中…" : track.fileName}
+                {snapshot.loading
+                  ? "読み込み中…"
+                  : `${snapshot.source === "stream" ? "ストリーミング" : snapshot.source === "blob" ? "取得済み" : ""} · ${track.fileName}`}
               </div>
             )}
 

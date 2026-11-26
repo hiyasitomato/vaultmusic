@@ -142,4 +142,5 @@ export interface PlayerSnapshot {
   needData: { trackId: string; sizeBytes: number } | null;
   queueLength: number;
   queueIndex: number;
+  source: "stream" | "blob" | null;
 }

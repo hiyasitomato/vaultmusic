@@ -152,6 +152,10 @@ export function mediaUrl(fileId: string, token: string): string {
   )}`;
 }
 
+export function swMediaUrl(fileId: string, token: string): string {
+  return `/media/${encodeURIComponent(fileId)}?t=${encodeURIComponent(token)}`;
+}
+
 export async function fetchFileBytes(
   fileId: string,
   token: string,

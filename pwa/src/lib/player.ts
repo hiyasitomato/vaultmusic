@@ -1,6 +1,6 @@
 import type { PlayerSnapshot, QueueState, RepeatMode, Track } from "./types";
 import { getAudioBlob } from "./offline";
-import { fetchFileBytes, mediaUrl } from "./drive";
+import { fetchFileBytes, swMediaUrl } from "./drive";
 import { formatTime } from "./format";
 
 const QUEUE_KEY = "vaultmusic.queue.v1";
@@ -46,6 +46,7 @@ const EMPTY: PlayerSnapshot = {
   needData: null,
   queueLength: 0,
   queueIndex: -1,
+  source: null,
 };
 
 class Player {
@@ -71,9 +72,6 @@ class Player {
   private fallbackTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingStream: { track: Track; token: number } | null = null;
   private fallbackInProgress = false;
-  private preferBlob =
-    typeof window !== "undefined" &&
-    window.localStorage.getItem("vaultmusic.preferBlob") === "1";
   private needsLoad = false;
   private deps: {
     getToken: () => Promise<string>;
@@ -452,13 +450,14 @@ class Player {
         if (this.deps.allowCellular() || this.forceStreamOnce) {
           const accessToken = await this.deps.getToken();
           this.accessToken = accessToken;
-          if (this.preferBlob) {
+          const canStream = await this.waitForController(800);
+          if (canStream) {
+            url = swMediaUrl(track.id, accessToken);
+            streaming = true;
+          } else {
             const raw = await fetchFileBytes(track.id, accessToken);
             objectUrl = URL.createObjectURL(this.withAudioType(track, raw));
             url = objectUrl;
-          } else {
-            url = mediaUrl(track.id, accessToken);
-            streaming = true;
           }
         } else {
           this.audio?.pause();
@@ -505,6 +504,7 @@ class Player {
     );
     audio.src = url;
     this.needsLoad = false;
+    this.update({ source: streaming ? "stream" : "blob" });
     this.updateMediaSession();
     if (streaming) {
       // play() が返らないケースでも切り替えられるよう、待つ前にタイマーを張る
@@ -521,6 +521,32 @@ class Player {
       clearTimeout(this.fallbackTimer);
       this.fallbackTimer = null;
     }
+  }
+
+  private async waitForController(timeoutMs: number): Promise<boolean> {
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return false;
+    if (navigator.serviceWorker.controller) return true;
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      const finish = (value: boolean) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        navigator.serviceWorker.removeEventListener("controllerchange", onChange);
+        resolve(value);
+      };
+      const onChange = () => finish(true);
+      const timer = setTimeout(
+        () => finish(Boolean(navigator.serviceWorker.controller)),
+        timeoutMs
+      );
+      navigator.serviceWorker.addEventListener("controllerchange", onChange, { once: true });
+      navigator.serviceWorker.ready
+        .then(() => {
+          if (navigator.serviceWorker.controller) finish(true);
+        })
+        .catch(() => undefined);
+    });
   }
 
   private withAudioType(track: Track, blob: Blob): Blob {
@@ -545,12 +571,6 @@ class Player {
     }
     if (this.fallbackInProgress) return;
     this.fallbackInProgress = true;
-    this.preferBlob = true;
-    try {
-      window.localStorage.setItem("vaultmusic.preferBlob", "1");
-    } catch {
-      // 無視
-    }
     this.clearStreamFallback();
     this.pendingStream = null;
     this.update({ loading: true, error: null });

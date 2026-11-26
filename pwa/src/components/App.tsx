@@ -92,6 +92,7 @@ export default function App() {
   const coverObjectUrl = useRef<string | null>(null);
   const lastRecorded = useRef<string | null>(null);
   const downloadBusy = useRef(false);
+  const prefetched = useRef<Set<string>>(new Set());
 
   function showToast(message: string): void {
     setToast(message);
@@ -110,6 +111,10 @@ export default function App() {
     restoredRef.current = true;
     if (player.restore(lib.tracks)) {
       showToast("前回の続きから再開できます");
+      const current = player.getTrack();
+      if (current && settingsRef.current?.allowCellular && peekToken()) {
+        void prefetchTrack(current);
+      }
     }
   }
 
@@ -237,6 +242,8 @@ export default function App() {
   async function prefetchTrack(track: Track): Promise<void> {
     if (downloadBusy.current) return;
     if (downloads.has(track.id) || downloading.has(track.id)) return;
+    if (prefetched.current.has(track.id)) return;
+    prefetched.current.add(track.id);
     try {
       const token = peekToken() ?? (await ensureToken(false));
       await saveTrackToDb(
@@ -246,7 +253,7 @@ export default function App() {
       );
       setDownloads(await getDownloadedIds().catch(() => new Set<string>()));
     } catch {
-      // 先読み失敗は無視（本再生には影響させない）
+      prefetched.current.delete(track.id);
     }
   }
 
@@ -340,6 +347,33 @@ export default function App() {
     player.setShuffle(true);
   }
 
+  function firstTrackForDetail(next: DetailState): Track | null {
+    if (!library) return null;
+    let ids: string[] = [];
+    if (next.kind === "folders") {
+      ids = library.folders.find((item) => item.folderId === next.id)?.trackIds ?? [];
+    } else if (next.kind === "artists") {
+      ids = library.artists.find((item) => item.name === next.id)?.trackIds ?? [];
+    } else if (next.kind === "albums") {
+      ids = library.albums.find((item) => item.key === next.id)?.trackIds ?? [];
+    } else if (next.kind === "playlists") {
+      ids = userData.playlists.find((item) => item.id === next.id)?.trackIds ?? [];
+    } else if (next.kind === "favorites") {
+      ids = next.id === "albums" ? [] : userData.favorites.tracks;
+    } else if (next.kind === "history") {
+      ids = userData.history.map((entry) => entry.trackId);
+    }
+    const firstId = ids[0];
+    return firstId ? library.tracks.find((track) => track.id === firstId) ?? null : null;
+  }
+
+  function openDetail(next: DetailState): void {
+    setDetail(next);
+    if (!settingsRef.current?.allowCellular) return;
+    const first = firstTrackForDetail(next);
+    if (first) void prefetchTrack(first);
+  }
+
   function saveNextForCommute(): void {
     if (!library) return;
     const queue = player.getQueue();
@@ -402,7 +436,10 @@ export default function App() {
     window.addEventListener("offline", handleOnline);
 
     if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+      navigator.serviceWorker
+        .register("/sw.js?v=3", { updateViaCache: "none" })
+        .then((registration) => registration.update().catch(() => undefined))
+        .catch(() => undefined);
     }
 
     return () => {
@@ -589,7 +626,7 @@ export default function App() {
       onToggleFavorite={(track) => toggleFavoriteTrack(track.id)}
       onDownload={(track) => void downloadOne(track)}
       onDownloadAll={(tracks) => void downloadMany(tracks)}
-      onOpenAlbum={(key) => setDetail({ kind: "albums", id: key })}
+      onOpenAlbum={(key) => openDetail({ kind: "albums", id: key })}
       onDeletePlaylist={(id) => {
         if (window.confirm("このプレイリストを削除しますか？")) {
           deletePlaylistData(id);
@@ -610,8 +647,8 @@ export default function App() {
       onPlayShuffle={playShuffleAll}
       onResume={() => void player.play()}
       onOpenDetail={(kind) => {
-        if (kind === "favorites") setDetail({ kind: "favorites", id: "tracks" });
-        else setDetail({ kind: "history" });
+        if (kind === "favorites") openDetail({ kind: "favorites", id: "tracks" });
+        else openDetail({ kind: "history" });
       }}
       onShowTracks={() => setTab("tracks")}
       onSaveNext={saveNextForCommute}
@@ -637,7 +674,7 @@ export default function App() {
       onDeletePlaylist={(id) => {
         if (window.confirm("このプレイリストを削除しますか？")) deletePlaylistData(id);
       }}
-      onOpen={(kind, id) => setDetail({ kind: kind as DetailState["kind"], id })}
+      onOpen={(kind, id) => openDetail({ kind: kind as DetailState["kind"], id })}
     />
   ) : (
     <SearchView
