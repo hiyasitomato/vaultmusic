@@ -23,12 +23,27 @@ const NUMBER_PATTERNS = [
 
 const SEPARATORS = [" - ", " – ", " — ", "／", " / "];
 
+const YOUTUBE_ID_PATTERN = /(?:youtu\.be\/|v=)([A-Za-z0-9_-]{11})|[\[\(]([A-Za-z0-9_-]{11})[\]\)]/;
+
+export function extractYouTubeId(fileName: string): string | null {
+  const match = fileName.match(YOUTUBE_ID_PATTERN);
+  return match ? match[1] || match[2] || null : null;
+}
+
+function stripYouTubeId(text: string): string {
+  return text
+    .replace(/\s*[\[\(][A-Za-z0-9_-]{11}[\]\)]\s*/g, " ")
+    .replace(/\s*(?:youtu\.be\/|v=)[A-Za-z0-9_-]{11}\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /**
  * ファイル名からタイトル・アーティスト・曲番号を推定する。
  * タグが無い曲（このライブラリでは半数以上）の表示名を決めるために使う。
  */
 export function parseName(fileName: string, knownArtists: Set<string> = new Set()): ParsedName {
-  let stem = stripExtension(fileName).trim();
+  let stem = stripYouTubeId(stripExtension(fileName).trim());
   let trackNo = 0;
 
   for (const pattern of NUMBER_PATTERNS) {

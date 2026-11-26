@@ -67,4 +67,17 @@ describe("buildLibrary", () => {
     expect(searchTracks(library, "four")).toHaveLength(1);
     expect(searchTracks(library, "nothing")).toHaveLength(0);
   });
+
+  it("uses a YouTube thumbnail when the filename has a video id", () => {
+    const yt = buildLibrary(
+      [file("9", "GO GHOST [gT5XyAtc-Z8].mp3")],
+      [{ id: "f1", name: "Music" }],
+      "root"
+    );
+    expect(yt.tracks[0].youtubeId).toBe("gT5XyAtc-Z8");
+    expect(yt.tracks[0].title).toBe("GO GHOST");
+    expect(yt.tracks[0].thumbnailLink).toBe(
+      "https://i.ytimg.com/vi/gT5XyAtc-Z8/mqdefault.jpg"
+    );
+  });
 });

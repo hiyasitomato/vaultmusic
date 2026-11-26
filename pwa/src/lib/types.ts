@@ -49,6 +49,7 @@ export interface Track {
   thumbnailLink?: string;
   coverThumb?: string;
   coverTrackId?: string;
+  youtubeId?: string;
   genre?: string;
   tagsApplied?: boolean;
   playable: boolean;

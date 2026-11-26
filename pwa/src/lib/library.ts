@@ -8,7 +8,7 @@ import type {
   Track,
 } from "./types";
 import { naturalCompare, normalizeText } from "./format";
-import { parseName } from "./parseName";
+import { parseName, extractYouTubeId } from "./parseName";
 
 const UNKNOWN_ARTIST = "不明なアーティスト";
 
@@ -64,6 +64,10 @@ export function buildLibrary(
     const albumArtist =
       (meta.albumArtist ?? "").trim() || (taggedAlbum ? artist : folderName) || artist;
     const durationMillis = Number(meta.durationMillis ?? 0);
+    const youtubeId = extractYouTubeId(file.name);
+    const youtubeThumbnail = youtubeId
+      ? `https://i.ytimg.com/vi/${youtubeId}/mqdefault.jpg`
+      : undefined;
     return {
       id: file.id,
       folderId: parentId,
@@ -80,7 +84,8 @@ export function buildLibrary(
       sizeBytes: Number(file.size ?? 0) || 0,
       mimeType: file.mimeType,
       modifiedTime: file.modifiedTime ?? file.createdTime ?? "",
-      thumbnailLink: file.thumbnailLink,
+      thumbnailLink: youtubeThumbnail ?? file.thumbnailLink,
+      youtubeId: youtubeId ?? undefined,
       playable: isPlayable(file.name),
     };
   });
@@ -159,8 +164,26 @@ export function tracksFor(library: Library, ids: string[]): Track[] {
   return ids.map((id) => byId.get(id)).filter((track): track is Track => Boolean(track));
 }
 
-export function searchTracks(library: Library, query: string): Track[] {
-  const needle = normalizeText(query);
+export function enrichYouTubeThumbnails(library: Library): Library {
+  let changed = false;
+  const tracks = library.tracks.map((track) => {
+    if (track.youtubeId) return track;
+    const youtubeId = extractYouTubeId(track.fileName);
+    if (!youtubeId) return track;
+    changed = true;
+    const parsed = track.tagsApplied ? null : parseName(track.fileName);
+    return {
+      ...track,
+      youtubeId,
+      thumbnailLink: `https://i.ytimg.com/vi/${youtubeId}/mqdefault.jpg`,
+      title: parsed?.title || track.title,
+      artist: parsed?.artist || track.artist,
+    };
+  });
+  return changed ? { ...library, tracks } : library;
+}
+
+export function searchTracks(library: Library, query: string): Track[] {  const needle = normalizeText(query);
   if (!needle) return [];
   return library.tracks.filter((track) => {
     const haystack = normalizeText(

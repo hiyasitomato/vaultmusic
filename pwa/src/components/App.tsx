@@ -16,7 +16,7 @@ import type { Library as LibraryData, Settings, Track, UserData } from "@/lib/ty
 import { DEFAULT_SETTINGS, BASE_PATH, extractFolderId, loadSettings, saveSettings } from "@/lib/config";
 import { forgetToken, getValidToken, peekToken, requestToken, revokeToken } from "@/lib/auth";
 import { fetchFileBytes, findFolderByName, listMusicFolder } from "@/lib/drive";
-import { buildLibrary } from "@/lib/library";
+import { buildLibrary, enrichYouTubeThumbnails } from "@/lib/library";
 import {
   cacheCatalog,
   clearDownloads,
@@ -169,7 +169,9 @@ export default function App() {
     }
     const storedTags = await getAllTrackTags().catch(() => ({} as Record<string, never>));
     const hasStoredTags = Object.keys(storedTags).length > 0;
-    const lib = hasStoredTags ? applyTagsToLibrary(built, storedTags) : built;
+    const lib = enrichYouTubeThumbnails(
+      hasStoredTags ? applyTagsToLibrary(built, storedTags) : built
+    );
     setTagCount(Object.keys(storedTags).length);
     try {
       await cacheCatalog(lib);
@@ -464,7 +466,9 @@ export default function App() {
           );
           const shouldApply =
             hasStoredTags && (cached.tagsScannedAt ?? 0) !== latestScan;
-          const enriched = shouldApply ? applyTagsToLibrary(cached, storedTags) : cached;
+          const enriched = enrichYouTubeThumbnails(
+            shouldApply ? applyTagsToLibrary(cached, storedTags) : cached
+          );
           setTagCount(Object.keys(storedTags).length);
           setLibrary(enriched);
           setAuthState(peekToken() ? "online" : "cached");

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseName } from "../src/lib/parseName";
+import { extractYouTubeId, parseName } from "../src/lib/parseName";
 import { normalizeText } from "../src/lib/format";
 
 describe("parseName", () => {
@@ -51,5 +51,15 @@ describe("parseName", () => {
 
   it("turns underscores into spaces", () => {
     expect(parseName("Some_Title.mp3").title).toBe("Some Title");
+  });
+
+  it("extracts and removes a YouTube video id", () => {
+    expect(extractYouTubeId("GO GHOST [gT5XyAtc-Z8].mp3")).toBe("gT5XyAtc-Z8");
+    expect(parseName("GO GHOST [gT5XyAtc-Z8].mp3").title).toBe("GO GHOST");
+    expect(parseName("Artist - Song [gT5XyAtc-Z8].mp3")).toEqual({
+      title: "Song",
+      artist: "Artist",
+      trackNo: 0,
+    });
   });
 });
