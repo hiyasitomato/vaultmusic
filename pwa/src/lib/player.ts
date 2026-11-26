@@ -1,6 +1,6 @@
 import type { PlayerSnapshot, QueueState, RepeatMode, Track } from "./types";
 import { getAudioBlob } from "./offline";
-import { mediaUrl } from "./drive";
+import { fetchFileBytes, mediaUrl } from "./drive";
 import { formatTime } from "./format";
 
 const QUEUE_KEY = "vaultmusic.queue.v1";
@@ -68,6 +68,12 @@ class Player {
   private lastTimeUpdateAt = 0;
   private downloadedIds = new Set<string>();
   private accessToken: string | null = null;
+  private fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingStream: { track: Track; token: number } | null = null;
+  private fallbackInProgress = false;
+  private preferBlob =
+    typeof window !== "undefined" &&
+    window.localStorage.getItem("vaultmusic.preferBlob") === "1";
   private needsLoad = false;
   private deps: {
     getToken: () => Promise<string>;
@@ -342,11 +348,20 @@ class Player {
       this.updatePositionState();
     });
     audio.addEventListener("waiting", () => this.update({ loading: true }));
-    audio.addEventListener("playing", () => this.update({ loading: false }));
+    audio.addEventListener("playing", () => {
+      this.clearStreamFallback();
+      this.pendingStream = null;
+      this.update({ loading: false });
+    });
     audio.addEventListener("ended", () => {
       void this.next(false);
     });
     audio.addEventListener("error", () => {
+      if (this.fallbackInProgress) return;
+      if (this.pendingStream) {
+        void this.fallbackToBlob(this.loadToken);
+        return;
+      }
       this.update({
         loading: false,
         isPlaying: false,
@@ -364,6 +379,11 @@ class Player {
     try {
       await this.audio.play();
     } catch (error) {
+      if (this.fallbackInProgress) return;
+      if (this.pendingStream && error instanceof Error && error.name !== "NotAllowedError") {
+        void this.fallbackToBlob(this.loadToken);
+        return;
+      }
       this.update({
         loading: false,
         error:
@@ -413,21 +433,33 @@ class Player {
       queueLength: this.tracks.length,
     });
 
+    this.clearStreamFallback();
+    this.pendingStream = null;
+    this.fallbackInProgress = false;
+
     let url = "";
     let objectUrl: string | null = null;
+    let streaming = false;
     try {
       if (this.downloadedIds.has(track.id)) {
-        const blob = await getAudioBlob(track.id).catch(() => null);
-        if (blob) {
-          objectUrl = URL.createObjectURL(blob);
+        const cached = await getAudioBlob(track.id).catch(() => null);
+        if (cached) {
+          objectUrl = URL.createObjectURL(this.withAudioType(track, cached));
           url = objectUrl;
         }
       }
       if (!url) {
         if (this.deps.allowCellular() || this.forceStreamOnce) {
-          const accessToken = this.accessToken ?? (await this.deps.getToken());
+          const accessToken = await this.deps.getToken();
           this.accessToken = accessToken;
-          url = mediaUrl(track.id, accessToken);
+          if (this.preferBlob) {
+            const raw = await fetchFileBytes(track.id, accessToken);
+            objectUrl = URL.createObjectURL(this.withAudioType(track, raw));
+            url = objectUrl;
+          } else {
+            url = mediaUrl(track.id, accessToken);
+            streaming = true;
+          }
         } else {
           this.audio?.pause();
           if (token === this.loadToken) {
@@ -462,6 +494,7 @@ class Player {
     this.objectUrl = objectUrl;
 
     const audio = this.ensureAudio();
+    if (streaming) this.pendingStream = { track, token };
     const startedAt = performance.now();
     audio.addEventListener(
       "playing",
@@ -473,8 +506,77 @@ class Player {
     audio.src = url;
     this.needsLoad = false;
     this.updateMediaSession();
-    if (autoplay) await this.safePlay();
+    if (streaming) {
+      // play() が返らないケースでも切り替えられるよう、待つ前にタイマーを張る
+      this.fallbackTimer = setTimeout(() => {
+        void this.fallbackToBlob(token);
+      }, 1500);
+    }
+    if (autoplay) void this.safePlay();
     this.persist(true);
+  }
+
+  private clearStreamFallback(): void {
+    if (this.fallbackTimer) {
+      clearTimeout(this.fallbackTimer);
+      this.fallbackTimer = null;
+    }
+  }
+
+  private withAudioType(track: Track, blob: Blob): Blob {
+    if (blob.type.startsWith("audio/")) return blob;
+    const name = track.fileName.toLowerCase();
+    const type = track.mimeType.startsWith("audio/")
+      ? track.mimeType
+      : /\.(m4a|aac)$/.test(name)
+        ? "audio/mp4"
+        : /\.(opus|ogg)$/.test(name)
+          ? "audio/ogg"
+          : "audio/mpeg";
+    return new Blob([blob], { type });
+  }
+
+  private async fallbackToBlob(loadToken: number): Promise<void> {
+    const pending = this.pendingStream;
+    if (!pending || pending.token !== loadToken || loadToken !== this.loadToken) return;
+    if (this.audio && !this.audio.paused && this.audio.readyState >= 2) {
+      this.pendingStream = null;
+      return;
+    }
+    if (this.fallbackInProgress) return;
+    this.fallbackInProgress = true;
+    this.preferBlob = true;
+    try {
+      window.localStorage.setItem("vaultmusic.preferBlob", "1");
+    } catch {
+      // 無視
+    }
+    this.clearStreamFallback();
+    this.pendingStream = null;
+    this.update({ loading: true, error: null });
+    try {
+      const token = await this.deps.getToken();
+      const raw = await fetchFileBytes(pending.track.id, token);
+      if (loadToken !== this.loadToken) return;
+      const blob = this.withAudioType(pending.track, raw);
+      const url = URL.createObjectURL(blob);
+      if (this.objectUrl) URL.revokeObjectURL(this.objectUrl);
+      this.objectUrl = url;
+      const audio = this.ensureAudio();
+      audio.src = url;
+      this.updateMediaSession();
+      await this.safePlay();
+    } catch {
+      if (loadToken === this.loadToken) {
+        this.update({
+          loading: false,
+          isPlaying: false,
+          error: "音源を取得できませんでした",
+        });
+      }
+    } finally {
+      this.fallbackInProgress = false;
+    }
   }
 
   private updateMediaSession(): void {
