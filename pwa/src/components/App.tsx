@@ -13,7 +13,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import type { Library as LibraryData, Settings, Track, UserData } from "@/lib/types";
-import { DEFAULT_SETTINGS, extractFolderId, loadSettings, saveSettings } from "@/lib/config";
+import { DEFAULT_SETTINGS, BASE_PATH, extractFolderId, loadSettings, saveSettings } from "@/lib/config";
 import { forgetToken, getValidToken, peekToken, requestToken, revokeToken } from "@/lib/auth";
 import { fetchFileBytes, findFolderByName, listMusicFolder } from "@/lib/drive";
 import { buildLibrary } from "@/lib/library";
@@ -430,7 +430,7 @@ export default function App() {
 
     if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
       navigator.serviceWorker
-        .register("/sw.js?v=3", { updateViaCache: "none" })
+        .register(`${BASE_PATH}/sw.js?v=3`, { updateViaCache: "none" })
         .then((registration) => registration.update().catch(() => undefined))
         .catch(() => undefined);
     }

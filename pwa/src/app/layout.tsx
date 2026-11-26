@@ -1,17 +1,19 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+
 export const metadata: Metadata = {
   title: "VaultMusic",
   description: "Google Drive の音楽を、通信なしで聴く PWA",
-  manifest: "/manifest.webmanifest",
+  manifest: `${basePath}/manifest.webmanifest`,
   applicationName: "VaultMusic",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "VaultMusic",
   },
-  icons: { icon: "/icon.svg" },
+  icons: { icon: `${basePath}/icon.svg` },
 };
 
 export const viewport: Viewport = {

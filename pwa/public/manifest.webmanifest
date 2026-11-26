@@ -2,8 +2,8 @@
   "name": "VaultMusic",
   "short_name": "VaultMusic",
   "description": "Google Drive の音楽を通信なしで聴く PWA",
-  "start_url": "/",
-  "scope": "/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0b0b0e",
@@ -11,7 +11,7 @@
   "categories": ["music", "multimedia"],
   "icons": [
     {
-      "src": "/icon.svg",
+      "src": "icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"

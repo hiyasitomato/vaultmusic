@@ -1,12 +1,20 @@
-const CACHE_NAME = "vaultmusic-shell-v2";
-const SHELL_ASSETS = ["/", "/manifest.webmanifest", "/icon.svg"];
-const MEDIA_PREFIX = "/media/";
+const CACHE_NAME = "vaultmusic-shell-v3";
+
+function scopePath() {
+  try {
+    return new URL(self.registration.scope).pathname;
+  } catch {
+    return "/";
+  }
+}
 
 self.addEventListener("install", (event) => {
+  const scope = scopePath();
+  const assets = [scope, `${scope}manifest.webmanifest`, `${scope}icon.svg`];
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => cache.addAll(SHELL_ASSETS))
+      .then((cache) => cache.addAll(assets))
       .catch(() => undefined)
   );
   self.skipWaiting();
@@ -22,8 +30,10 @@ self.addEventListener("activate", (event) => {
 });
 
 async function handleMedia(request) {
+  const scope = scopePath();
+  const prefix = `${scope}media/`;
   const url = new URL(request.url);
-  const id = decodeURIComponent(url.pathname.slice(MEDIA_PREFIX.length));
+  const id = decodeURIComponent(url.pathname.slice(prefix.length));
   const token = url.searchParams.get("t") || "";
   if (!id || !token) return new Response("Bad request", { status: 400 });
 
@@ -38,7 +48,7 @@ async function handleMedia(request) {
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(
         id
       )}?alt=media&supportsAllDrives=true`,
-      { headers }
+      { headers, priority: "high" }
     );
   } catch {
     return new Response("upstream error", { status: 502 });
@@ -62,15 +72,18 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
-  if (url.pathname.startsWith(MEDIA_PREFIX)) {
+  const scope = scopePath();
+  const mediaPrefix = `${scope}media/`;
+
+  if (url.pathname.startsWith(mediaPrefix)) {
     event.respondWith(handleMedia(event.request));
     return;
   }
 
   if (
-    url.pathname.startsWith("/_next/static/") ||
-    url.pathname === "/icon.svg" ||
-    url.pathname === "/manifest.webmanifest"
+    url.pathname.includes("/_next/static/") ||
+    url.pathname === `${scope}icon.svg` ||
+    url.pathname === `${scope}manifest.webmanifest`
   ) {
     event.respondWith(
       caches.match(event.request).then((cached) => {

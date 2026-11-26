@@ -1,5 +1,7 @@
 import type { Settings } from "./types";
 
+export const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+
 const KEY = "vaultmusic.settings.v1";
 const GIB = 1024 ** 3;
 

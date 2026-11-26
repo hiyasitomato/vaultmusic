@@ -1,4 +1,5 @@
 import type { DriveAudioFile, DriveFolder } from "./types";
+import { BASE_PATH } from "./config";
 
 const API = "https://www.googleapis.com/drive/v3";
 const FOLDER_MIME = "application/vnd.google-apps.folder";const AUDIO_EXT = /\.(mp3|m4a|aac|opus|flac|wav|ogg)$/i;
@@ -153,7 +154,7 @@ export function mediaUrl(fileId: string, token: string): string {
 }
 
 export function swMediaUrl(fileId: string, token: string): string {
-  return `/media/${encodeURIComponent(fileId)}?t=${encodeURIComponent(token)}`;
+  return `${BASE_PATH}/media/${encodeURIComponent(fileId)}?t=${encodeURIComponent(token)}`;
 }
 
 export async function fetchFileBytes(
