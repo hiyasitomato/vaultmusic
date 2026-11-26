@@ -1,8 +1,7 @@
 import type { DriveAudioFile, DriveFolder } from "./types";
 
 const API = "https://www.googleapis.com/drive/v3";
-const FOLDER_MIME = "application/vnd.google-apps.folder";
-const AUDIO_EXT = /\.(mp3|m4a|aac|opus|flac|wav|ogg)$/i;
+const FOLDER_MIME = "application/vnd.google-apps.folder";const AUDIO_EXT = /\.(mp3|m4a|aac|opus|flac|wav|ogg)$/i;
 const FILE_FIELDS =
   "id,name,mimeType,size,modifiedTime,createdTime,parents,audioMediaMetadata,thumbnailLink";
 
@@ -19,7 +18,11 @@ export class DriveError extends Error {
 async function driveFetch(url: string, token: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   headers.set("Authorization", `Bearer ${token}`);
-  const response = await fetch(url, { ...init, headers });
+  const signal =
+    typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
+      ? AbortSignal.timeout(30000)
+      : undefined;
+  const response = await fetch(url, { ...init, headers, signal });
   if (response.status === 401) {
     throw new DriveError("AUTH_EXPIRED", 401, "Google のログインが切れました");
   }
@@ -79,13 +82,23 @@ export async function listMusicFolder(
   const queue: { id: string; parentId?: string }[] = [{ id: folderId }];
   const seen = new Set<string>();
 
-  try {
-    const metaResponse = await driveFetch(`${API}/files/${encodeURIComponent(folderId)}?fields=id,name`, token);
-    const meta = (await metaResponse.json()) as { id?: string; name?: string };
-    folders.push({ id: folderId, name: meta.name ?? "音楽" });
-  } catch {
-    folders.push({ id: folderId, name: "音楽" });
+  const metaResponse = await driveFetch(
+    `${API}/files/${encodeURIComponent(folderId)}?fields=id,name,mimeType&supportsAllDrives=true`,
+    token
+  );
+  const meta = (await metaResponse.json()) as {
+    id?: string;
+    name?: string;
+    mimeType?: string;
+  };
+  if (meta.mimeType && meta.mimeType !== FOLDER_MIME) {
+    throw new DriveError(
+      "DRIVE_ERROR",
+      400,
+      "指定した URL はフォルダではありません。音楽フォルダの URL を貼り付けてください。"
+    );
   }
+  folders.push({ id: folderId, name: meta.name ?? "音楽" });
 
   while (queue.length > 0 && seen.size < 2000) {
     const current = queue.shift();

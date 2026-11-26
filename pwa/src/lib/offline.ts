@@ -9,7 +9,11 @@ export async function cacheCatalog(library: Library): Promise<void> {
 }
 
 export async function getCachedCatalog(): Promise<Library | null> {
-  return dbGet<Library>("kv", CATALOG_KEY);
+  try {
+    return await dbGet<Library>("kv", CATALOG_KEY);
+  } catch {
+    return null;
+  }
 }
 
 export async function getDownloads(): Promise<DownloadEntry[]> {

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ArrowLeft, Database, LogOut, RefreshCw, Trash2, Wifi } from "lucide-react";
 import type { Settings } from "@/lib/types";
 import { formatBytes } from "@/lib/format";
+import { extractFolderId } from "@/lib/config";
 
 const CACHE_OPTIONS = [512, 1024, 1536, 2048, 4096, 8192];
 
@@ -38,7 +39,12 @@ export function SettingsView({
   const [folderId, setFolderId] = useState(settings.folderId);
 
   const commit = (patch: Partial<Settings>) =>
-    onChange({ ...settings, clientId: clientId.trim(), folderId: folderId.trim(), ...patch });
+    onChange({
+      ...settings,
+      clientId: clientId.trim(),
+      folderId: extractFolderId(folderId),
+      ...patch,
+    });
 
   const persistFields = () => {
     commit({});

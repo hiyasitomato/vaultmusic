@@ -80,6 +80,7 @@ export default function App() {
   const [detail, setDetail] = useState<DetailState | null>(null);
   const [busy, setBusy] = useState(false);
   const [busyLabel, setBusyLabel] = useState<string | null>(null);
+  const [connectError, setConnectError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [fullPlayer, setFullPlayer] = useState(false);
@@ -114,39 +115,63 @@ export default function App() {
   }
 
   async function refreshStorage(): Promise<void> {
-    const [bytes, estimate] = await Promise.all([getDownloadedBytes(), storageUsage()]);
-    setSavedBytes(bytes);
-    setUsage(estimate);
+    try {
+      const [bytes, estimate] = await Promise.all([getDownloadedBytes(), storageUsage()]);
+      setSavedBytes(bytes);
+      setUsage(estimate);
+    } catch {
+      setSavedBytes(0);
+    }
   }
 
   async function ensureToken(interactive: boolean): Promise<string> {
     const clientId = settingsRef.current?.clientId ?? "";
-    try {
+    if (!interactive) {
       const token = await getValidToken(clientId);
       setAuthState("online");
       return token;
-    } catch (error) {
-      if (!interactive) throw error;
-      const refreshed = await requestToken(clientId, false);
-      setAuthState("online");
-      return refreshed.token;
     }
+    const existing = peekToken();
+    if (existing) {
+      setAuthState("online");
+      return existing;
+    }
+    const refreshed = await requestToken(clientId, false);
+    setAuthState("online");
+    return refreshed.token;
   }
 
   async function loadLibrary(folderId: string, token: string): Promise<void> {
-    setBusyLabel("ライブラリを読み込み中…");
-    const { files, folders } = await listMusicFolder(folderId, token);
+    setBusyLabel("音楽フォルダを確認中…");
+    let listing: Awaited<ReturnType<typeof listMusicFolder>>;
+    try {
+      listing = await listMusicFolder(folderId, token);
+    } catch (error) {
+      throw new Error(`Drive接続に失敗: ${errorMessage(error)}`);
+    }
+    const { files, folders } = listing;
+    setBusyLabel(`${files.length}曲の情報を整理中…`);
     const lib = buildLibrary(files, folders, folderId);
-    await cacheCatalog(lib);
+    if (lib.tracks.length === 0) {
+      throw new Error(
+        "このフォルダに音声ファイルが見つかりませんでした。音楽フォルダの URL を確認してください。"
+      );
+    }
+    try {
+      await cacheCatalog(lib);
+    } catch {
+      // キャッシュに失敗しても、今回のセッションでは表示できる
+    }
     setLibrary(lib);
     setAuthState("online");
     maybeRestore(lib);
-    setDownloads(await getDownloadedIds());
+    setDownloads(await getDownloadedIds().catch(() => new Set<string>()));
     await refreshStorage();
     showToast(`${lib.tracks.length}曲を読み込みました`);
   }
 
   async function connect(clientId: string, folderId: string): Promise<void> {
+    setConnectError(null);
     setBusy(true);
     try {
       const next: Settings = {
@@ -157,6 +182,9 @@ export default function App() {
       updateSettings(next);
       const token = await ensureToken(true);
       await loadLibrary(folderId, token);
+    } catch (error) {
+      console.error("[VaultMusic] connect failed", error);
+      setConnectError(errorMessage(error));
     } finally {
       setBusy(false);
       setBusyLabel(null);
@@ -164,6 +192,7 @@ export default function App() {
   }
 
   async function login(clientId: string): Promise<void> {
+    setConnectError(null);
     await requestToken(clientId.trim(), false);
     const next: Settings = { ...(settingsRef.current ?? DEFAULT_SETTINGS), clientId: clientId.trim() };
     updateSettings(next);
@@ -184,14 +213,15 @@ export default function App() {
 
   async function rescan(): Promise<void> {
     const current = settingsRef.current;
-    if (!current?.folderId) {
+    const folderId = extractFolderId(current?.folderId ?? "");
+    if (!folderId) {
       showToast("音楽フォルダが未設定です");
       return;
     }
     setBusy(true);
     try {
       const token = await ensureToken(true);
-      await loadLibrary(current.folderId, token);
+      await loadLibrary(folderId, token);
     } catch (error) {
       showToast(errorMessage(error));
     } finally {
@@ -331,14 +361,18 @@ export default function App() {
     const unsubscribePlayer = player.subscribe((next) => setSnapshot(next));
 
     void (async () => {
-      const cached = await getCachedCatalog();
-      if (cached) {
-        setLibrary(cached);
-        setAuthState(peekToken() ? "online" : "cached");
-        maybeRestore(cached);
+      try {
+        const cached = await getCachedCatalog();
+        if (cached) {
+          setLibrary(cached);
+          setAuthState(peekToken() ? "online" : "cached");
+          maybeRestore(cached);
+        }
+        setDownloads(await getDownloadedIds().catch(() => new Set<string>()));
+        await refreshStorage();
+      } catch {
+        // キャッシュが読めなくても、オンライン接続は試せる
       }
-      setDownloads(await getDownloadedIds());
-      await refreshStorage();
     })();
 
     const handleOnline = () => setOnline(navigator.onLine);
@@ -467,7 +501,7 @@ export default function App() {
         initialClientId={settings.clientId}
         initialFolderId={settings.folderId}
         busy={busy}
-        error={null}
+        error={connectError}
         onLogin={login}
         onDetect={detectFolder}
         onConnect={connect}

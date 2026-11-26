@@ -31,7 +31,11 @@ export function loadSettings(): Settings {
 
 export function saveSettings(settings: Settings): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(KEY, JSON.stringify(settings));
+  try {
+    window.localStorage.setItem(KEY, JSON.stringify(settings));
+  } catch {
+    // プライベートモード等で保存できなくても動作は続ける
+  }
 }
 
 export function extractFolderId(input: string): string {

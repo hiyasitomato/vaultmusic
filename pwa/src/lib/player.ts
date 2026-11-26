@@ -382,7 +382,7 @@ class Player {
     let url = "";
     let objectUrl: string | null = null;
     try {
-      const blob = await getAudioBlob(track.id);
+      const blob = await getAudioBlob(track.id).catch(() => null);
       if (blob) {
         objectUrl = URL.createObjectURL(blob);
         url = objectUrl;

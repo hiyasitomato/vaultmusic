@@ -75,11 +75,21 @@ export async function requestToken(
 
   return new Promise((resolve, reject) => {
     let settled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
     const finish = (error: AuthError) => {
       if (settled) return;
       settled = true;
+      if (timer) clearTimeout(timer);
       reject(error);
     };
+    timer = setTimeout(() => {
+      finish(
+        new AuthError(
+          "AUTH_FAILED",
+          "ログインが完了しませんでした。ポップアップがブロックされていないか確認して、もう一度お試しください。"
+        )
+      );
+    }, 60000);
 
     const client = oauth2.initTokenClient({
       client_id: clientId,
@@ -90,6 +100,7 @@ export async function requestToken(
           const expiresAt = Date.now() + Math.max(60, Number(response.expires_in ?? 3600) - 30) * 1000;
           cached = { token: response.access_token, expiresAt, clientId };
           settled = true;
+          if (timer) clearTimeout(timer);
           resolve({ token: response.access_token, expiresAt });
           return;
         }

@@ -35,7 +35,7 @@ function mostCommon(values: string[]): string {
 }
 
 function isPlayable(name: string): boolean {
-  return !/\.opus$/i.test(name);
+  return !/\.(opus|ogg)$/i.test(name);
 }
 
 export function buildLibrary(
