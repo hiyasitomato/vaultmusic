@@ -53,7 +53,6 @@ import { SearchView } from "./SearchView";
 import { DetailView, type DetailState } from "./DetailView";
 import { PlayerBar } from "./PlayerBar";
 import { FullPlayer } from "./FullPlayer";
-import { ConfirmDataModal } from "./ConfirmDataModal";
 import { SettingsView } from "./SettingsView";
 import { SetupScreen } from "./SetupScreen";
 import { PlaylistPicker } from "./PlaylistPicker";
@@ -340,14 +339,13 @@ export default function App() {
     return playlist.id;
   }
 
-  async function confirmStream(): Promise<void> {
-    try {
-      await ensureToken(true);
-      player.forceStream();
-    } catch (error) {
-      showToast(errorMessage(error));
-    }
-  }
+  useEffect(() => {
+    if (!snapshot.needData) return;
+    showToast("未保存の曲です。設定で通信再生をONにするか、端末に保存してください");
+    player.clearNeedData();
+    player.pause();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot.needData]);
 
   useEffect(() => {
     const loaded = loadSettings();
@@ -411,7 +409,7 @@ export default function App() {
     if (!settings) return;
     player.configure({
       getToken: () => getValidToken(settingsRef.current?.clientId ?? ""),
-      allowCellular: () => settingsRef.current?.allowCellular ?? false,
+      allowCellular: () => settingsRef.current?.allowCellular ?? true,
       coverUrl: (track) => track.thumbnailLink ?? null,
       onDuration: (trackId, seconds) => {
         setLibrary((prev) => {
@@ -755,19 +753,6 @@ export default function App() {
           quota={usage.quota}
           busy={busy}
           authState={effectiveAuth}
-        />
-      ) : null}
-
-      {snapshot.needData && currentTrack ? (
-        <ConfirmDataModal
-          title={currentTrack.title}
-          artist={currentTrack.artist}
-          sizeBytes={snapshot.needData.sizeBytes}
-          onConfirm={() => void confirmStream()}
-          onCancel={() => {
-            player.clearNeedData();
-            player.pause();
-          }}
         />
       ) : null}
 

@@ -6,8 +6,9 @@ const GIB = 1024 ** 3;
 export const DEFAULT_SETTINGS: Settings = {
   clientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "",
   folderId: "",
-  allowCellular: false,
+  allowCellular: true,
   cacheLimitBytes: Math.round(1.5 * GIB),
+  prefsVersion: 2,
 };
 
 export function loadSettings(): Settings {
@@ -16,9 +17,14 @@ export function loadSettings(): Settings {
     const raw = window.localStorage.getItem(KEY);
     if (!raw) return { ...DEFAULT_SETTINGS };
     const parsed = JSON.parse(raw) as Partial<Settings>;
+    // v1 の「既定OFF」で保存された設定は、確認ダイアログ廃止に合わせて ON に移行する。
+    // 以降ユーザーが明示的に OFF にした場合は prefsVersion が付くので保持される。
+    const migrated = parsed.prefsVersion === undefined;
     return {
       ...DEFAULT_SETTINGS,
       ...parsed,
+      allowCellular: migrated ? true : parsed.allowCellular ?? true,
+      prefsVersion: 2,
       cacheLimitBytes:
         typeof parsed.cacheLimitBytes === "number" && parsed.cacheLimitBytes > 0
           ? parsed.cacheLimitBytes

@@ -120,6 +120,7 @@ export interface Settings {
   folderId: string;
   allowCellular: boolean;
   cacheLimitBytes: number;
+  prefsVersion?: number;
 }
 
 export interface DownloadEntry {
